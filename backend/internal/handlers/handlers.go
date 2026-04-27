@@ -21,6 +21,9 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/domains", a.domains)
 	mux.HandleFunc("/api/databases", a.databases)
 	mux.HandleFunc("/api/mailboxes", a.mailboxes)
+	mux.HandleFunc("/api/ftp-accounts", a.ftpAccounts)
+	mux.HandleFunc("/api/dns-records", a.dnsRecords)
+	mux.HandleFunc("/api/files", a.files)
 	mux.HandleFunc("/api/services", a.services)
 }
 
@@ -83,6 +86,45 @@ func (a *API) mailboxes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+func (a *API) ftpAccounts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	items, err := a.Store.ListFTPAccounts(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (a *API) dnsRecords(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	items, err := a.Store.ListDNSRecords(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (a *API) files(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	items, err := a.Store.ListFileItems(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 func (a *API) services(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -91,6 +133,8 @@ func (a *API) services(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, []models.ServiceToggle{
 		{Name: "nginx", Enabled: true},
 		{Name: "php-fpm", Enabled: true},
+		{Name: "vsftpd", Enabled: true},
+		{Name: "named", Enabled: true},
 		{Name: "postfix", Enabled: true},
 		{Name: "dovecot", Enabled: true},
 		{Name: "fail2ban", Enabled: true},

@@ -14,4 +14,7 @@ async function request(path, options = {}) {
 export const getDomains = () => request('/api/domains')
 export const getDatabases = () => request('/api/databases')
 export const getMailboxes = () => request('/api/mailboxes')
+export const getFtpAccounts = () => request('/api/ftp-accounts')
+export const getDnsRecords = () => request('/api/dns-records')
+export const getFiles = () => request('/api/files')
 export const getServices = () => request('/api/services')
