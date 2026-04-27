@@ -30,10 +30,14 @@ type Store struct {
 
 func Connect(_ string) (*Store, error) {
 	return &Store{
-		domains:   []models.Domain{{ID: 1, Name: "example.com", DocRoot: "/home/example/public_html", PHPVersion: "8.2", Status: "active"}},
+		domains: []models.Domain{
+			{ID: 1, Name: "example.com", Type: "domain", DocRoot: "/home/example/public_html", PHPVersion: "8.2", Status: "active"},
+			{ID: 2, Name: "blog.example.com", Type: "subdomain", ParentDomain: "example.com", DocRoot: "/home/example/public_html/blog", PHPVersion: "8.2", Status: "active"},
+			{ID: 3, Name: "example.net", Type: "parking", TargetDomain: "example.com", DocRoot: "/home/example/public_html", PHPVersion: "inherit", Status: "active"},
+		},
 		databases: []models.Database{{ID: 2, Name: "example_app", Owner: "example", Encoding: "UTF8"}},
 		mailboxes: []models.Mailbox{{
-			ID:               3,
+			ID:               4,
 			Address:          "admin@example.com",
 			QuotaMB:          2048,
 			PasswordMasked:   true,
@@ -42,7 +46,7 @@ func Connect(_ string) (*Store, error) {
 		}},
 		mailCredentials: map[string]string{"admin@example.com": "seed-password"},
 		ftpAccounts: []models.FTPAccount{{
-			ID:               4,
+			ID:               5,
 			Username:         "exampleftp",
 			HomeDir:          "/home/example/public_html",
 			QuotaMB:          1024,
@@ -52,14 +56,14 @@ func Connect(_ string) (*Store, error) {
 		}},
 		ftpCredentials: map[string]string{"exampleftp": "seed-password"},
 		dnsRecords: []models.DNSRecord{
-			{ID: 5, Zone: "example.com", Type: "A", Name: "@", Value: "203.0.113.10", TTL: 3600},
-			{ID: 6, Zone: "example.com", Type: "MX", Name: "@", Value: "mail.example.com", TTL: 3600, Priority: ptrInt(10)},
+			{ID: 6, Zone: "example.com", Type: "A", Name: "@", Value: "203.0.113.10", TTL: 3600},
+			{ID: 7, Zone: "example.com", Type: "MX", Name: "@", Value: "mail.example.com", TTL: 3600, Priority: ptrInt(10)},
 		},
 		fileItems: []models.FileItem{
-			{ID: 7, Path: "/home/example/public_html/index.php", Kind: "file", SizeKB: 12, Modified: "2026-04-20T09:00:00Z"},
-			{ID: 8, Path: "/home/example/public_html/uploads", Kind: "directory", SizeKB: 0, Modified: "2026-04-24T16:30:00Z"},
+			{ID: 8, Path: "/home/example/public_html/index.php", Kind: "file", SizeKB: 12, Modified: "2026-04-20T09:00:00Z"},
+			{ID: 9, Path: "/home/example/public_html/uploads", Kind: "directory", SizeKB: 0, Modified: "2026-04-24T16:30:00Z"},
 		},
-		nextID: 9,
+		nextID: 10,
 	}, nil
 }
 
@@ -78,11 +82,79 @@ func (s *Store) ListDomains(_ context.Context) ([]models.Domain, error) {
 func (s *Store) CreateDomain(_ context.Context, input models.Domain) (models.Domain, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	name, err := normalizeDomainName(input.Name)
+	if err != nil {
+		return models.Domain{}, err
+	}
+	domainType := strings.ToLower(strings.TrimSpace(input.Type))
+	if domainType == "" {
+		domainType = "domain"
+	}
+	if domainType != "domain" && domainType != "subdomain" && domainType != "parking" {
+		return models.Domain{}, errors.New("invalid domain type")
+	}
+	parentDomain := strings.ToLower(strings.TrimSpace(input.ParentDomain))
+	targetDomain := strings.ToLower(strings.TrimSpace(input.TargetDomain))
+
 	for _, domain := range s.domains {
-		if strings.EqualFold(domain.Name, input.Name) {
+		if strings.EqualFold(domain.Name, name) {
 			return models.Domain{}, errors.New("domain already exists")
 		}
 	}
+	if domainType == "subdomain" {
+		if parentDomain == "" {
+			return models.Domain{}, errors.New("parent_domain is required for subdomains")
+		}
+		if _, err := normalizeDomainName(parentDomain); err != nil {
+			return models.Domain{}, errors.New("invalid parent_domain")
+		}
+		if !strings.HasSuffix(name, "."+parentDomain) {
+			return models.Domain{}, errors.New("subdomain must end with parent_domain")
+		}
+		if !s.domainExists(parentDomain) {
+			return models.Domain{}, errors.New("parent_domain does not exist")
+		}
+	}
+	if domainType == "parking" {
+		if targetDomain == "" {
+			return models.Domain{}, errors.New("target_domain is required for parking domains")
+		}
+		if _, err := normalizeDomainName(targetDomain); err != nil {
+			return models.Domain{}, errors.New("invalid target_domain")
+		}
+		if !s.domainExists(targetDomain) {
+			return models.Domain{}, errors.New("target_domain does not exist")
+		}
+	}
+	if domainType != "subdomain" {
+		parentDomain = ""
+	}
+	if domainType != "parking" {
+		targetDomain = ""
+	}
+	docRoot := strings.TrimSpace(input.DocRoot)
+	if docRoot == "" {
+		docRoot = s.defaultDocRoot(name, domainType, parentDomain, targetDomain)
+	}
+	phpVersion := strings.TrimSpace(input.PHPVersion)
+	if phpVersion == "" {
+		phpVersion = "8.2"
+	}
+	if domainType == "parking" {
+		phpVersion = "inherit"
+	}
+	status := strings.ToLower(strings.TrimSpace(input.Status))
+	if status == "" {
+		status = "active"
+	}
+
+	input.Name = name
+	input.Type = domainType
+	input.ParentDomain = parentDomain
+	input.TargetDomain = targetDomain
+	input.DocRoot = docRoot
+	input.PHPVersion = phpVersion
+	input.Status = status
 	input.ID = s.nextID
 	s.nextID++
 	s.domains = append(s.domains, input)
@@ -109,6 +181,23 @@ func (s *Store) UpdateDomain(_ context.Context, name string, input models.Update
 		if strings.TrimSpace(input.Status) != "" {
 			domain.Status = strings.TrimSpace(strings.ToLower(input.Status))
 		}
+		if strings.TrimSpace(input.TargetDomain) != "" {
+			if domain.Type != "parking" {
+				return models.Domain{}, errors.New("target_domain can be changed only for parking domains")
+			}
+			targetDomain, err := normalizeDomainName(input.TargetDomain)
+			if err != nil {
+				return models.Domain{}, errors.New("invalid target_domain")
+			}
+			if !s.domainExists(targetDomain) {
+				return models.Domain{}, errors.New("target_domain does not exist")
+			}
+			domain.TargetDomain = targetDomain
+			target := s.findDomain(targetDomain)
+			if target != nil {
+				domain.DocRoot = target.DocRoot
+			}
+		}
 		s.domains[i] = domain
 		return domain, nil
 	}
@@ -129,6 +218,43 @@ func (s *Store) DeleteDomain(_ context.Context, name string) error {
 		}
 	}
 	return errors.New("domain not found")
+}
+
+func normalizeDomainName(raw string) (string, error) {
+	clean := strings.ToLower(strings.TrimSpace(raw))
+	matched, _ := regexp.MatchString(`^(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$`, clean)
+	if !matched {
+		return "", errors.New("invalid domain name")
+	}
+	return clean, nil
+}
+
+func (s *Store) domainExists(name string) bool {
+	return s.findDomain(name) != nil
+}
+
+func (s *Store) findDomain(name string) *models.Domain {
+	for i := range s.domains {
+		if s.domains[i].Name == name {
+			return &s.domains[i]
+		}
+	}
+	return nil
+}
+
+func (s *Store) defaultDocRoot(name, domainType, parentDomain, targetDomain string) string {
+	switch domainType {
+	case "subdomain":
+		prefix := strings.TrimSuffix(name, "."+parentDomain)
+		prefix = strings.Split(prefix, ".")[0]
+		return path.Join("/home", parentDomain, "public_html", prefix)
+	case "parking":
+		target := s.findDomain(targetDomain)
+		if target != nil {
+			return target.DocRoot
+		}
+	}
+	return path.Join("/home", name, "public_html")
 }
 
 func (s *Store) ListDatabases(_ context.Context) ([]models.Database, error) {
