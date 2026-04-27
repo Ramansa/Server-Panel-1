@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
+  createDatabase,
+  createDomain,
   createMailbox,
   createDnsRecord,
   createFileItem,
   createFtpAccount,
+  deleteDatabase,
+  deleteDomain,
   deleteMailbox,
   deleteDnsRecord,
   deleteFileItem,
@@ -18,6 +22,8 @@ import {
   getFtpAccounts,
   getMailboxes,
   getServices,
+  updateDatabase,
+  updateDomain,
   updateMailbox,
   updateMailboxPassword,
   updateFileItem,
@@ -148,6 +154,9 @@ export function Dashboard() {
   const [dnsForm, setDnsForm] = useState({ zone: 'example.com', type: 'A', name: '@', value: '', ttl: 3600, priority: 10 })
   const [dnsStatus, setDnsStatus] = useState('')
   const [zonefileOutput, setZonefileOutput] = useState('')
+  const [domainForm, setDomainForm] = useState({ name: '', doc_root: '/home/', php_version: '8.2', status: 'active' })
+  const [databaseForm, setDatabaseForm] = useState({ name: '', owner: '', encoding: 'UTF8' })
+  const [accountStatus, setAccountStatus] = useState('')
 
   const loadAll = () =>
     Promise.all([
@@ -185,6 +194,83 @@ export function Dashboard() {
     getDnsRecords(dnsFilterZone)
       .then((dnsRecords) => setData((prev) => ({ ...prev, dnsRecords })))
       .catch((error) => setDnsStatus(error.message))
+
+  const refreshDomains = () =>
+    getDomains()
+      .then((domains) => setData((prev) => ({ ...prev, domains })))
+      .catch((error) => setAccountStatus(error.message))
+
+  const refreshDatabases = () =>
+    getDatabases()
+      .then((databases) => setData((prev) => ({ ...prev, databases })))
+      .catch((error) => setAccountStatus(error.message))
+
+  const submitDomain = (event) => {
+    event.preventDefault()
+    setAccountStatus('Creating domain...')
+    createDomain(domainForm)
+      .then(() => {
+        setDomainForm({ name: '', doc_root: '/home/', php_version: '8.2', status: 'active' })
+        setAccountStatus('Domain created.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const updateDomainStatus = (domain) => {
+    const nextStatus = domain.status === 'active' ? 'suspended' : 'active'
+    setAccountStatus(`Updating ${domain.name}...`)
+    updateDomain(domain.name, { status: nextStatus })
+      .then(() => {
+        setAccountStatus('Domain updated.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const removeDomain = (name) => {
+    setAccountStatus(`Deleting ${name}...`)
+    deleteDomain(name)
+      .then(() => {
+        setAccountStatus('Domain deleted.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const submitDatabase = (event) => {
+    event.preventDefault()
+    setAccountStatus('Creating database...')
+    createDatabase(databaseForm)
+      .then(() => {
+        setDatabaseForm({ name: '', owner: '', encoding: 'UTF8' })
+        setAccountStatus('Database created.')
+        return refreshDatabases()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const reassignDatabaseOwner = (database) => {
+    const owner = window.prompt(`New owner for ${database.name}`, database.owner)
+    if (!owner) return
+    setAccountStatus(`Updating ${database.name} owner...`)
+    updateDatabase(database.name, { owner })
+      .then(() => {
+        setAccountStatus('Database updated.')
+        return refreshDatabases()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const removeDatabase = (name) => {
+    setAccountStatus(`Deleting ${name}...`)
+    deleteDatabase(name)
+      .then(() => {
+        setAccountStatus('Database deleted.')
+        return refreshDatabases()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
 
   const submitNewItem = (event) => {
     event.preventDefault()
@@ -403,19 +489,70 @@ export function Dashboard() {
       <p>Domains, databases, mail, FTP, DNS, files, and core service visibility in one dashboard.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         <Card title="Domains">
+          <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="example.com"
+              value={domainForm.name}
+              onChange={(event) => setDomainForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+            <input
+              placeholder="/home/account/public_html"
+              value={domainForm.doc_root}
+              onChange={(event) => setDomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
+            />
+            <input
+              placeholder="8.2"
+              value={domainForm.php_version}
+              onChange={(event) => setDomainForm((prev) => ({ ...prev, php_version: event.target.value }))}
+            />
+            <button type="submit">Create Domain</button>
+          </form>
           <ul>
             {data.domains.map((d) => (
-              <li key={d.id}>{d.name} → {d.doc_root} ({d.php_version})</li>
+              <li key={d.id}>
+                {d.name} → {d.doc_root} ({d.php_version}) [{d.status}]
+                {' '}
+                <button type="button" onClick={() => updateDomainStatus(d)}>
+                  {d.status === 'active' ? 'Suspend' : 'Activate'}
+                </button>
+                {' '}
+                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+              </li>
             ))}
           </ul>
         </Card>
 
         <Card title="Databases">
+          <form onSubmit={submitDatabase} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="app_db"
+              value={databaseForm.name}
+              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+            <input
+              placeholder="owner"
+              value={databaseForm.owner}
+              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, owner: event.target.value }))}
+            />
+            <input
+              placeholder="UTF8"
+              value={databaseForm.encoding}
+              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, encoding: event.target.value }))}
+            />
+            <button type="submit">Create Database</button>
+          </form>
           <ul>
             {data.databases.map((db) => (
-              <li key={db.id}>{db.name} ({db.owner})</li>
+              <li key={db.id}>
+                {db.name} ({db.owner}) [{db.encoding}]
+                {' '}
+                <button type="button" onClick={() => reassignDatabaseOwner(db)}>Change Owner</button>
+                {' '}
+                <button type="button" onClick={() => removeDatabase(db.name)}>Delete</button>
+              </li>
             ))}
           </ul>
+          <p>{accountStatus}</p>
         </Card>
 
         <Card title="Mailboxes">

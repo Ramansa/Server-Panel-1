@@ -78,10 +78,57 @@ func (s *Store) ListDomains(_ context.Context) ([]models.Domain, error) {
 func (s *Store) CreateDomain(_ context.Context, input models.Domain) (models.Domain, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for _, domain := range s.domains {
+		if strings.EqualFold(domain.Name, input.Name) {
+			return models.Domain{}, errors.New("domain already exists")
+		}
+	}
 	input.ID = s.nextID
 	s.nextID++
 	s.domains = append(s.domains, input)
 	return input, nil
+}
+
+func (s *Store) UpdateDomain(_ context.Context, name string, input models.UpdateDomainInput) (models.Domain, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	if cleanName == "" {
+		return models.Domain{}, errors.New("domain name is required")
+	}
+	for i, domain := range s.domains {
+		if domain.Name != cleanName {
+			continue
+		}
+		if strings.TrimSpace(input.DocRoot) != "" {
+			domain.DocRoot = strings.TrimSpace(input.DocRoot)
+		}
+		if strings.TrimSpace(input.PHPVersion) != "" {
+			domain.PHPVersion = strings.TrimSpace(input.PHPVersion)
+		}
+		if strings.TrimSpace(input.Status) != "" {
+			domain.Status = strings.TrimSpace(strings.ToLower(input.Status))
+		}
+		s.domains[i] = domain
+		return domain, nil
+	}
+	return models.Domain{}, errors.New("domain not found")
+}
+
+func (s *Store) DeleteDomain(_ context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	if cleanName == "" {
+		return errors.New("domain name is required")
+	}
+	for i, domain := range s.domains {
+		if domain.Name == cleanName {
+			s.domains = append(s.domains[:i], s.domains[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("domain not found")
 }
 
 func (s *Store) ListDatabases(_ context.Context) ([]models.Database, error) {
@@ -90,6 +137,73 @@ func (s *Store) ListDatabases(_ context.Context) ([]models.Database, error) {
 	out := make([]models.Database, len(s.databases))
 	copy(out, s.databases)
 	return out, nil
+}
+
+func (s *Store) CreateDatabase(_ context.Context, input models.CreateDatabaseInput) (models.Database, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name := strings.ToLower(strings.TrimSpace(input.Name))
+	owner := strings.ToLower(strings.TrimSpace(input.Owner))
+	if name == "" || owner == "" {
+		return models.Database{}, errors.New("name and owner are required")
+	}
+	encoding := strings.ToUpper(strings.TrimSpace(input.Encoding))
+	if encoding == "" {
+		encoding = "UTF8"
+	}
+	for _, database := range s.databases {
+		if database.Name == name {
+			return models.Database{}, errors.New("database already exists")
+		}
+	}
+	created := models.Database{
+		ID:       s.nextID,
+		Name:     name,
+		Owner:    owner,
+		Encoding: encoding,
+	}
+	s.nextID++
+	s.databases = append(s.databases, created)
+	return created, nil
+}
+
+func (s *Store) UpdateDatabase(_ context.Context, name string, input models.UpdateDatabaseInput) (models.Database, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	if cleanName == "" {
+		return models.Database{}, errors.New("database name is required")
+	}
+	for i, database := range s.databases {
+		if database.Name != cleanName {
+			continue
+		}
+		if strings.TrimSpace(input.Owner) != "" {
+			database.Owner = strings.ToLower(strings.TrimSpace(input.Owner))
+		}
+		if strings.TrimSpace(input.Encoding) != "" {
+			database.Encoding = strings.ToUpper(strings.TrimSpace(input.Encoding))
+		}
+		s.databases[i] = database
+		return database, nil
+	}
+	return models.Database{}, errors.New("database not found")
+}
+
+func (s *Store) DeleteDatabase(_ context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cleanName := strings.ToLower(strings.TrimSpace(name))
+	if cleanName == "" {
+		return errors.New("database name is required")
+	}
+	for i, database := range s.databases {
+		if database.Name == cleanName {
+			s.databases = append(s.databases[:i], s.databases[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("database not found")
 }
 
 func (s *Store) ListMailboxes(_ context.Context) ([]models.Mailbox, error) {

@@ -5,14 +5,25 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options
   })
+  const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`)
+    throw new Error(payload?.error || `Request failed: ${response.status}`)
   }
-  return response.json()
+  return payload
 }
 
 export const getDomains = () => request('/api/domains')
+export const createDomain = (payload) => request('/api/domains', { method: 'POST', body: JSON.stringify(payload) })
+export const updateDomain = (name, payload) =>
+  request(`/api/domains/item?name=${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteDomain = (name) =>
+  request(`/api/domains/item?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
 export const getDatabases = () => request('/api/databases')
+export const createDatabase = (payload) => request('/api/databases', { method: 'POST', body: JSON.stringify(payload) })
+export const updateDatabase = (name, payload) =>
+  request(`/api/databases/item?name=${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteDatabase = (name) =>
+  request(`/api/databases/item?name=${encodeURIComponent(name)}`, { method: 'DELETE' })
 export const getMailboxes = () => request('/api/mailboxes')
 export const createMailbox = (payload) => request('/api/mailboxes', { method: 'POST', body: JSON.stringify(payload) })
 export const updateMailbox = (address, payload) =>
