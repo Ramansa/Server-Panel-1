@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 
 	"serverpanel/backend/internal/db"
 	"serverpanel/backend/internal/models"
@@ -24,6 +26,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ftp-accounts", a.ftpAccounts)
 	mux.HandleFunc("/api/dns-records", a.dnsRecords)
 	mux.HandleFunc("/api/files", a.files)
+	mux.HandleFunc("/api/files/item", a.fileItem)
+	mux.HandleFunc("/api/files/download", a.downloadFileItem)
 	mux.HandleFunc("/api/services", a.services)
 }
 
@@ -113,16 +117,104 @@ func (a *API) dnsRecords(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) files(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		items, err := a.Store.ListFileItems(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var input models.CreateFileItemInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		created, err := a.Store.CreateFileItem(r.Context(), input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func filePathFromQuery(r *http.Request) (string, error) {
+	rawPath := r.URL.Query().Get("path")
+	if rawPath == "" {
+		return "", errors.New("missing query parameter: path")
+	}
+	decoded, err := url.QueryUnescape(rawPath)
+	if err != nil {
+		return "", errors.New("invalid path")
+	}
+	return decoded, nil
+}
+
+func (a *API) fileItem(w http.ResponseWriter, r *http.Request) {
+	itemPath, err := filePathFromQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		item, err := a.Store.GetFileItem(r.Context(), itemPath)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+	case http.MethodPut:
+		var input models.UpdateFileItemInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		updated, err := a.Store.UpdateFileItem(r.Context(), itemPath, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := a.Store.DeleteFileItem(r.Context(), itemPath); err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *API) downloadFileItem(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	items, err := a.Store.ListFileItems(r.Context())
+	itemPath, err := filePathFromQuery(r)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	item, err := a.Store.GetFileItem(r.Context(), itemPath)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	if item.Kind != "file" {
+		writeError(w, http.StatusBadRequest, errors.New("only files can be downloaded"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"path":    item.Path,
+		"content": item.Content,
+	})
 }
 
 func (a *API) services(w http.ResponseWriter, r *http.Request) {

@@ -12,7 +12,7 @@ A Linux-focused hosting control panel skeleton with:
 - Mailbox inventory (`/api/mailboxes`)
 - FTP account inventory (`/api/ftp-accounts`)
 - DNS records inventory (`/api/dns-records`)
-- File manager inventory (`/api/files`)
+- File manager (list/create/read/update/delete/download)
 - Service state summary (`/api/services`)
 
 ## Local development (Linux)
@@ -50,6 +50,11 @@ Or run both:
 - `GET /api/ftp-accounts`
 - `GET /api/dns-records`
 - `GET /api/files`
+- `POST /api/files`
+- `GET /api/files/item?path=<absolute-path>`
+- `PUT /api/files/item?path=<absolute-path>`
+- `DELETE /api/files/item?path=<absolute-path>`
+- `GET /api/files/download?path=<absolute-path>`
 - `GET /api/services`
 
 ## Notes
