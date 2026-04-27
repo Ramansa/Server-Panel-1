@@ -15,6 +15,62 @@ A Linux-focused hosting control panel skeleton with:
 - File manager (list/create/read/update/delete/download)
 - Service state summary (`/api/services`)
 
+## Ubuntu 24.04 setup (recommended)
+
+Yes — this project runs on Ubuntu 24.04.
+
+### 0) Install system dependencies
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-client golang-go nodejs npm
+```
+
+Optional (recommended) if your Ubuntu image has an older Node.js package:
+```bash
+sudo npm install -g n
+sudo n lts
+```
+
+### 1) Start PostgreSQL
+```bash
+sudo systemctl enable --now postgresql
+```
+
+### 2) Ensure a local postgres user/password exists for dev defaults
+The default scripts use:
+- user: `postgres`
+- password: `postgres`
+- database: `server_panel`
+
+If needed:
+```bash
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+```
+
+### 3) Bootstrap PostgreSQL schema
+```bash
+./scripts/setup.sh
+```
+
+### 4) Run backend
+```bash
+cd backend
+go mod tidy
+go run ./cmd/server
+```
+
+### 5) Run frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### One-command development mode
+```bash
+./scripts/dev.sh
+```
+
 ## Local development (Linux)
 
 ### 1) Bootstrap PostgreSQL schema
