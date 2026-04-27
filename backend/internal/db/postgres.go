@@ -3,8 +3,11 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,8 +43,8 @@ func Connect(_ string) (*Store, error) {
 		}},
 		ftpCredentials: map[string]string{"exampleftp": "seed-password"},
 		dnsRecords: []models.DNSRecord{
-			{ID: 5, Type: "A", Name: "@", Value: "203.0.113.10", TTL: 3600},
-			{ID: 6, Type: "MX", Name: "@", Value: "mail.example.com", TTL: 3600},
+			{ID: 5, Zone: "example.com", Type: "A", Name: "@", Value: "203.0.113.10", TTL: 3600},
+			{ID: 6, Zone: "example.com", Type: "MX", Name: "@", Value: "mail.example.com", TTL: 3600, Priority: ptrInt(10)},
 		},
 		fileItems: []models.FileItem{
 			{ID: 7, Path: "/home/example/public_html/index.php", Kind: "file", SizeKB: 12, Modified: "2026-04-20T09:00:00Z"},
@@ -50,6 +53,8 @@ func Connect(_ string) (*Store, error) {
 		nextID: 9,
 	}, nil
 }
+
+func ptrInt(v int) *int { return &v }
 
 func (s *Store) Close() error { return nil }
 
@@ -260,6 +265,245 @@ func (s *Store) ListDNSRecords(_ context.Context) ([]models.DNSRecord, error) {
 	out := make([]models.DNSRecord, len(s.dnsRecords))
 	copy(out, s.dnsRecords)
 	return out, nil
+}
+
+func normalizeZone(zone string) (string, error) {
+	clean := strings.Trim(strings.ToLower(strings.TrimSpace(zone)), ".")
+	matched, _ := regexp.MatchString(`^[a-z0-9][a-z0-9.-]{1,251}[a-z0-9]$`, clean)
+	if !matched || !strings.Contains(clean, ".") {
+		return "", errors.New("invalid zone")
+	}
+	return clean, nil
+}
+
+func normalizeDNSName(name string) (string, error) {
+	clean := strings.TrimSpace(strings.ToLower(name))
+	if clean == "" {
+		return "", errors.New("record name is required")
+	}
+	if clean == "@" {
+		return clean, nil
+	}
+	if strings.HasSuffix(clean, ".") {
+		clean = strings.TrimSuffix(clean, ".")
+	}
+	matched, _ := regexp.MatchString(`^[a-z0-9*][a-z0-9*._-]{0,251}$`, clean)
+	if !matched {
+		return "", errors.New("invalid record name")
+	}
+	return clean, nil
+}
+
+func normalizeDNSType(recordType string) (string, error) {
+	kind := strings.ToUpper(strings.TrimSpace(recordType))
+	switch kind {
+	case "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA":
+		return kind, nil
+	default:
+		return "", errors.New("unsupported DNS type")
+	}
+}
+
+func normalizeTTL(ttl int) (int, error) {
+	if ttl == 0 {
+		return 3600, nil
+	}
+	if ttl < 60 || ttl > 604800 {
+		return 0, errors.New("ttl must be between 60 and 604800")
+	}
+	return ttl, nil
+}
+
+func normalizePriority(recordType string, priority *int) (*int, error) {
+	if recordType != "MX" && recordType != "SRV" {
+		return nil, nil
+	}
+	if priority == nil {
+		return ptrInt(10), nil
+	}
+	if *priority < 0 || *priority > 65535 {
+		return nil, errors.New("priority must be between 0 and 65535")
+	}
+	return priority, nil
+}
+
+func normalizeDNSValue(value string) (string, error) {
+	clean := strings.TrimSpace(value)
+	if clean == "" {
+		return "", errors.New("record value is required")
+	}
+	return clean, nil
+}
+
+func (s *Store) CreateDNSRecord(_ context.Context, input models.CreateDNSRecordInput) (models.DNSRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	zone, err := normalizeZone(input.Zone)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	recordType, err := normalizeDNSType(input.Type)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	name, err := normalizeDNSName(input.Name)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	value, err := normalizeDNSValue(input.Value)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	ttl, err := normalizeTTL(input.TTL)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	priority, err := normalizePriority(recordType, input.Priority)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+
+	for _, existing := range s.dnsRecords {
+		if existing.Zone == zone && existing.Type == recordType && existing.Name == name && existing.Value == value {
+			return models.DNSRecord{}, errors.New("dns record already exists")
+		}
+	}
+
+	created := models.DNSRecord{
+		ID:       s.nextID,
+		Zone:     zone,
+		Type:     recordType,
+		Name:     name,
+		Value:    value,
+		TTL:      ttl,
+		Priority: priority,
+	}
+	s.nextID++
+	s.dnsRecords = append(s.dnsRecords, created)
+	return created, nil
+}
+
+func (s *Store) UpdateDNSRecord(_ context.Context, id int64, input models.UpdateDNSRecordInput) (models.DNSRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	index := -1
+	for i, record := range s.dnsRecords {
+		if record.ID == id {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.DNSRecord{}, errors.New("dns record not found")
+	}
+
+	updated := s.dnsRecords[index]
+	if strings.TrimSpace(input.Zone) != "" {
+		zone, err := normalizeZone(input.Zone)
+		if err != nil {
+			return models.DNSRecord{}, err
+		}
+		updated.Zone = zone
+	}
+	if strings.TrimSpace(input.Type) != "" {
+		recordType, err := normalizeDNSType(input.Type)
+		if err != nil {
+			return models.DNSRecord{}, err
+		}
+		updated.Type = recordType
+	}
+	if strings.TrimSpace(input.Name) != "" {
+		name, err := normalizeDNSName(input.Name)
+		if err != nil {
+			return models.DNSRecord{}, err
+		}
+		updated.Name = name
+	}
+	if strings.TrimSpace(input.Value) != "" {
+		value, err := normalizeDNSValue(input.Value)
+		if err != nil {
+			return models.DNSRecord{}, err
+		}
+		updated.Value = value
+	}
+	if input.TTL != 0 {
+		ttl, err := normalizeTTL(input.TTL)
+		if err != nil {
+			return models.DNSRecord{}, err
+		}
+		updated.TTL = ttl
+	}
+	priority, err := normalizePriority(updated.Type, input.Priority)
+	if err != nil {
+		return models.DNSRecord{}, err
+	}
+	updated.Priority = priority
+
+	s.dnsRecords[index] = updated
+	return updated, nil
+}
+
+func (s *Store) DeleteDNSRecord(_ context.Context, id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, record := range s.dnsRecords {
+		if record.ID == id {
+			s.dnsRecords = append(s.dnsRecords[:i], s.dnsRecords[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("dns record not found")
+}
+
+func (s *Store) RenderZoneFile(_ context.Context, zone string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	cleanZone, err := normalizeZone(zone)
+	if err != nil {
+		return "", err
+	}
+
+	var zoneRecords []models.DNSRecord
+	for _, record := range s.dnsRecords {
+		if record.Zone == cleanZone {
+			zoneRecords = append(zoneRecords, record)
+		}
+	}
+	if len(zoneRecords) == 0 {
+		return "", errors.New("zone has no records")
+	}
+
+	sort.Slice(zoneRecords, func(i, j int) bool {
+		if zoneRecords[i].Name == zoneRecords[j].Name {
+			return zoneRecords[i].Type < zoneRecords[j].Type
+		}
+		return zoneRecords[i].Name < zoneRecords[j].Name
+	})
+
+	now := time.Now().UTC().Format("2006010201")
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("$TTL 3600\n@ IN SOA ns1.%s. hostmaster.%s. (\n", cleanZone, cleanZone))
+	builder.WriteString(fmt.Sprintf("    %s ; serial\n", now))
+	builder.WriteString("    3600 ; refresh\n    900 ; retry\n    1209600 ; expire\n    300 ; minimum\n)\n")
+
+	for _, record := range zoneRecords {
+		name := record.Name
+		if name == "@" {
+			name = "@"
+		}
+		line := fmt.Sprintf("%s %d IN %s ", name, record.TTL, record.Type)
+		if record.Priority != nil && (record.Type == "MX" || record.Type == "SRV") {
+			line += strconv.Itoa(*record.Priority) + " "
+		}
+		line += record.Value
+		builder.WriteString(line + "\n")
+	}
+
+	return builder.String(), nil
 }
 
 func (s *Store) ListFileItems(_ context.Context) ([]models.FileItem, error) {

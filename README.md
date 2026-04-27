@@ -11,7 +11,7 @@ A Linux-focused hosting control panel skeleton with:
 - Database inventory (`/api/databases`)
 - Mailbox inventory (`/api/mailboxes`)
 - FTP account lifecycle management (create/list/update/disable/delete/password reset)
-- DNS records inventory (`/api/dns-records`)
+- DNS zone editor (list/create/update/delete records + zonefile rendering)
 - File manager (list/create/read/update/delete/download)
 - Service state summary (`/api/services`)
 
@@ -53,6 +53,10 @@ Or run both:
 - `DELETE /api/ftp-accounts/item?username=<ftp-user>`
 - `PUT /api/ftp-accounts/password?username=<ftp-user>`
 - `GET /api/dns-records`
+- `POST /api/dns-records`
+- `PUT /api/dns-records/item?id=<dns-id>`
+- `DELETE /api/dns-records/item?id=<dns-id>`
+- `GET /api/dns-records/zonefile?zone=<domain>`
 - `GET /api/files`
 - `POST /api/files`
 - `GET /api/files/item?path=<absolute-path>`

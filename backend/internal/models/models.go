@@ -50,11 +50,31 @@ type UpdateFTPPasswordInput struct {
 }
 
 type DNSRecord struct {
-	ID    int64  `json:"id"`
-	Type  string `json:"type"`
-	Name  string `json:"name"`
-	Value string `json:"value"`
-	TTL   int    `json:"ttl"`
+	ID       int64  `json:"id"`
+	Zone     string `json:"zone"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	TTL      int    `json:"ttl"`
+	Priority *int   `json:"priority,omitempty"`
+}
+
+type CreateDNSRecordInput struct {
+	Zone     string `json:"zone"`
+	Type     string `json:"type"`
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	TTL      int    `json:"ttl"`
+	Priority *int   `json:"priority,omitempty"`
+}
+
+type UpdateDNSRecordInput struct {
+	Zone     string `json:"zone,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Value    string `json:"value,omitempty"`
+	TTL      int    `json:"ttl,omitempty"`
+	Priority *int   `json:"priority"`
 }
 
 type FileItem struct {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"serverpanel/backend/internal/db"
@@ -28,6 +29,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ftp-accounts/item", a.ftpAccountItem)
 	mux.HandleFunc("/api/ftp-accounts/password", a.ftpPassword)
 	mux.HandleFunc("/api/dns-records", a.dnsRecords)
+	mux.HandleFunc("/api/dns-records/item", a.dnsRecordItem)
+	mux.HandleFunc("/api/dns-records/zonefile", a.dnsZoneFile)
 	mux.HandleFunc("/api/files", a.files)
 	mux.HandleFunc("/api/files/item", a.fileItem)
 	mux.HandleFunc("/api/files/download", a.downloadFileItem)
@@ -186,16 +189,103 @@ func (a *API) ftpPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) dnsRecords(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		items, err := a.Store.ListDNSRecords(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		zoneFilter := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("zone")))
+		if zoneFilter == "" {
+			writeJSON(w, http.StatusOK, items)
+			return
+		}
+		filtered := make([]models.DNSRecord, 0, len(items))
+		for _, item := range items {
+			if strings.EqualFold(item.Zone, zoneFilter) {
+				filtered = append(filtered, item)
+			}
+		}
+		writeJSON(w, http.StatusOK, filtered)
+	case http.MethodPost:
+		var input models.CreateDNSRecordInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		created, err := a.Store.CreateDNSRecord(r.Context(), input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func dnsIDFromQuery(r *http.Request) (int64, error) {
+	rawID := strings.TrimSpace(r.URL.Query().Get("id"))
+	if rawID == "" {
+		return 0, errors.New("missing query parameter: id")
+	}
+	id, err := strconv.ParseInt(rawID, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, errors.New("invalid id")
+	}
+	return id, nil
+}
+
+func (a *API) dnsRecordItem(w http.ResponseWriter, r *http.Request) {
+	id, err := dnsIDFromQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var input models.UpdateDNSRecordInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		updated, err := a.Store.UpdateDNSRecord(r.Context(), id, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := a.Store.DeleteDNSRecord(r.Context(), id); err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *API) dnsZoneFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	items, err := a.Store.ListDNSRecords(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	zone := strings.TrimSpace(r.URL.Query().Get("zone"))
+	if zone == "" {
+		writeError(w, http.StatusBadRequest, errors.New("missing query parameter: zone"))
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	zoneFile, err := a.Store.RenderZoneFile(r.Context(), zone)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"zone":     strings.ToLower(zone),
+		"zonefile": zoneFile,
+	})
 }
 
 func (a *API) files(w http.ResponseWriter, r *http.Request) {
