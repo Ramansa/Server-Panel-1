@@ -15,9 +15,9 @@ A Linux-focused hosting control panel skeleton with:
 - File manager (list/create/read/update/delete/download)
 - Service state summary (`/api/services`)
 
-## Ubuntu 24.04 setup (recommended)
+## Ubuntu 26.04 setup (recommended)
 
-Yes — this project runs on Ubuntu 24.04.
+Yes — this project runs on Ubuntu 26.04. (It also works on Ubuntu 24.04 with the same steps.)
 
 ### 0) Install system dependencies
 ```bash
