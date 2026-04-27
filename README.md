@@ -10,6 +10,9 @@ A Linux-focused hosting control panel skeleton with:
 - Domain management inventory (`/api/domains`)
 - Database inventory (`/api/databases`)
 - Mailbox inventory (`/api/mailboxes`)
+- FTP account inventory (`/api/ftp-accounts`)
+- DNS records inventory (`/api/dns-records`)
+- File manager inventory (`/api/files`)
 - Service state summary (`/api/services`)
 
 ## Local development (Linux)
@@ -44,6 +47,9 @@ Or run both:
 - `POST /api/domains`
 - `GET /api/databases`
 - `GET /api/mailboxes`
+- `GET /api/ftp-accounts`
+- `GET /api/dns-records`
+- `GET /api/files`
 - `GET /api/services`
 
 ## Notes
