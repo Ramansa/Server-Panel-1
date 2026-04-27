@@ -60,14 +60,20 @@ func (a *API) domains(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		if input.Type == "" {
+			input.Type = "domain"
+		}
 		if input.Status == "" {
 			input.Status = "active"
 		}
 		created, err := a.Store.CreateDomain(r.Context(), models.Domain{
-			Name:       strings.ToLower(strings.TrimSpace(input.Name)),
-			DocRoot:    strings.TrimSpace(input.DocRoot),
-			PHPVersion: strings.TrimSpace(input.PHPVersion),
-			Status:     strings.ToLower(strings.TrimSpace(input.Status)),
+			Name:         strings.ToLower(strings.TrimSpace(input.Name)),
+			Type:         strings.ToLower(strings.TrimSpace(input.Type)),
+			ParentDomain: strings.ToLower(strings.TrimSpace(input.ParentDomain)),
+			TargetDomain: strings.ToLower(strings.TrimSpace(input.TargetDomain)),
+			DocRoot:      strings.TrimSpace(input.DocRoot),
+			PHPVersion:   strings.TrimSpace(input.PHPVersion),
+			Status:       strings.ToLower(strings.TrimSpace(input.Status)),
 		})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)

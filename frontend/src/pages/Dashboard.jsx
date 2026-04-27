@@ -154,7 +154,9 @@ export function Dashboard() {
   const [dnsForm, setDnsForm] = useState({ zone: 'example.com', type: 'A', name: '@', value: '', ttl: 3600, priority: 10 })
   const [dnsStatus, setDnsStatus] = useState('')
   const [zonefileOutput, setZonefileOutput] = useState('')
-  const [domainForm, setDomainForm] = useState({ name: '', doc_root: '/home/', php_version: '8.2', status: 'active' })
+  const [domainForm, setDomainForm] = useState({ name: '', doc_root: '', php_version: '8.2', status: 'active' })
+  const [subdomainForm, setSubdomainForm] = useState({ label: '', parent_domain: 'example.com', doc_root: '', php_version: '8.2' })
+  const [parkingForm, setParkingForm] = useState({ name: '', target_domain: 'example.com' })
   const [databaseForm, setDatabaseForm] = useState({ name: '', owner: '', encoding: 'UTF8' })
   const [accountStatus, setAccountStatus] = useState('')
 
@@ -208,10 +210,52 @@ export function Dashboard() {
   const submitDomain = (event) => {
     event.preventDefault()
     setAccountStatus('Creating domain...')
-    createDomain(domainForm)
+    createDomain({ ...domainForm, type: 'domain' })
       .then(() => {
-        setDomainForm({ name: '', doc_root: '/home/', php_version: '8.2', status: 'active' })
+        setDomainForm({ name: '', doc_root: '', php_version: '8.2', status: 'active' })
         setAccountStatus('Domain created.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const submitSubdomain = (event) => {
+    event.preventDefault()
+    const label = subdomainForm.label.trim().toLowerCase()
+    const parentDomain = subdomainForm.parent_domain.trim().toLowerCase()
+    if (!label || !parentDomain) {
+      setAccountStatus('Subdomain label and parent domain are required.')
+      return
+    }
+    setAccountStatus('Creating subdomain...')
+    createDomain({
+      name: `${label}.${parentDomain}`,
+      type: 'subdomain',
+      parent_domain: parentDomain,
+      doc_root: subdomainForm.doc_root,
+      php_version: subdomainForm.php_version,
+      status: 'active'
+    })
+      .then(() => {
+        setSubdomainForm({ label: '', parent_domain: parentDomain, doc_root: '', php_version: '8.2' })
+        setAccountStatus('Subdomain created.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const submitParkingDomain = (event) => {
+    event.preventDefault()
+    setAccountStatus('Creating parking domain...')
+    createDomain({
+      name: parkingForm.name,
+      type: 'parking',
+      target_domain: parkingForm.target_domain,
+      status: 'active'
+    })
+      .then(() => {
+        setParkingForm((prev) => ({ ...prev, name: '' }))
+        setAccountStatus('Parking domain created.')
         return refreshDomains()
       })
       .catch((error) => setAccountStatus(error.message))
@@ -233,6 +277,19 @@ export function Dashboard() {
     deleteDomain(name)
       .then(() => {
         setAccountStatus('Domain deleted.')
+        return refreshDomains()
+      })
+      .catch((error) => setAccountStatus(error.message))
+  }
+
+  const retargetParkingDomain = (domain) => {
+    if (domain.type !== 'parking') return
+    const target = window.prompt(`Target domain for ${domain.name}`, domain.target_domain || '')
+    if (!target) return
+    setAccountStatus(`Updating ${domain.name} target...`)
+    updateDomain(domain.name, { target_domain: target })
+      .then(() => {
+        setAccountStatus('Parking domain updated.')
         return refreshDomains()
       })
       .catch((error) => setAccountStatus(error.message))
@@ -483,20 +540,26 @@ export function Dashboard() {
       .catch((error) => setDnsStatus(error.message))
   }
 
+  const rootDomains = data.domains.filter((domain) => domain.type === 'domain')
+  const subdomains = data.domains.filter((domain) => domain.type === 'subdomain')
+  const parkingDomains = data.domains.filter((domain) => domain.type === 'parking')
+  const parkingTargets = data.domains.filter((domain) => domain.type !== 'parking')
+
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <h1>Server Panel (cPanel-style)</h1>
       <p>Domains, databases, mail, FTP, DNS, files, and core service visibility in one dashboard.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         <Card title="Domains">
-          <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+          <strong>Add Domain</strong>
+          <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
             <input
               placeholder="example.com"
               value={domainForm.name}
               onChange={(event) => setDomainForm((prev) => ({ ...prev, name: event.target.value }))}
             />
             <input
-              placeholder="/home/account/public_html"
+              placeholder="/home/account/public_html (optional)"
               value={domainForm.doc_root}
               onChange={(event) => setDomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
             />
@@ -507,8 +570,51 @@ export function Dashboard() {
             />
             <button type="submit">Create Domain</button>
           </form>
+
+          <strong>Add Subdomain</strong>
+          <form onSubmit={submitSubdomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
+            <input
+              placeholder="blog"
+              value={subdomainForm.label}
+              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, label: event.target.value }))}
+            />
+            <select
+              value={subdomainForm.parent_domain}
+              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, parent_domain: event.target.value }))}
+            >
+              {rootDomains.map((domain) => (
+                <option key={domain.id} value={domain.name}>{domain.name}</option>
+              ))}
+            </select>
+            <input
+              placeholder="/home/account/public_html/blog (optional)"
+              value={subdomainForm.doc_root}
+              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
+            />
+            <button type="submit">Create Subdomain</button>
+          </form>
+
+          <strong>Add Parking Domain</strong>
+          <form onSubmit={submitParkingDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
+            <input
+              placeholder="example.net"
+              value={parkingForm.name}
+              onChange={(event) => setParkingForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+            <select
+              value={parkingForm.target_domain}
+              onChange={(event) => setParkingForm((prev) => ({ ...prev, target_domain: event.target.value }))}
+            >
+              {parkingTargets.map((domain) => (
+                <option key={domain.id} value={domain.name}>{domain.name}</option>
+              ))}
+            </select>
+            <button type="submit">Create Parking Domain</button>
+          </form>
+
+          <strong>Domains</strong>
           <ul>
-            {data.domains.map((d) => (
+            {rootDomains.map((d) => (
               <li key={d.id}>
                 {d.name} → {d.doc_root} ({d.php_version}) [{d.status}]
                 {' '}
@@ -520,6 +626,39 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
+
+          <strong>Subdomains</strong>
+          <ul>
+            {subdomains.map((d) => (
+              <li key={d.id}>
+                {d.name} (parent: {d.parent_domain}) → {d.doc_root} [{d.status}]
+                {' '}
+                <button type="button" onClick={() => updateDomainStatus(d)}>
+                  {d.status === 'active' ? 'Suspend' : 'Activate'}
+                </button>
+                {' '}
+                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+
+          <strong>Parking Domains</strong>
+          <ul>
+            {parkingDomains.map((d) => (
+              <li key={d.id}>
+                {d.name} parked on {d.target_domain} [{d.status}]
+                {' '}
+                <button type="button" onClick={() => retargetParkingDomain(d)}>Retarget</button>
+                {' '}
+                <button type="button" onClick={() => updateDomainStatus(d)}>
+                  {d.status === 'active' ? 'Suspend' : 'Activate'}
+                </button>
+                {' '}
+                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+          <p>{accountStatus}</p>
         </Card>
 
         <Card title="Databases">
@@ -552,7 +691,6 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-          <p>{accountStatus}</p>
         </Card>
 
         <Card title="Mailboxes">
