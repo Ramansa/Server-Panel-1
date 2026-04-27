@@ -159,6 +159,16 @@ export function Dashboard() {
   const [parkingForm, setParkingForm] = useState({ name: '', target_domain: 'example.com' })
   const [databaseForm, setDatabaseForm] = useState({ name: '', owner: '', encoding: 'UTF8' })
   const [accountStatus, setAccountStatus] = useState('')
+  const [hostingAccountForm, setHostingAccountForm] = useState({
+    account: '',
+    domain: '',
+    owner: '',
+    password: '',
+    php_version: '8.2',
+    mailbox_quota_mb: 2048,
+    ftp_quota_mb: 4096
+  })
+  const [hostingAccountStatus, setHostingAccountStatus] = useState('')
 
   const loadAll = () =>
     Promise.all([
@@ -540,6 +550,68 @@ export function Dashboard() {
       .catch((error) => setDnsStatus(error.message))
   }
 
+  const submitHostingAccount = (event) => {
+    event.preventDefault()
+    const account = hostingAccountForm.account.trim().toLowerCase()
+    const domain = hostingAccountForm.domain.trim().toLowerCase()
+    const owner = hostingAccountForm.owner.trim().toLowerCase()
+    const password = hostingAccountForm.password
+
+    if (!account || !domain || !owner || !password) {
+      setHostingAccountStatus('Account, domain, owner, and password are required.')
+      return
+    }
+
+    const mailboxAddress = `${account}@${domain}`
+    const ftpUsername = account
+    const databaseName = `${account}_db`
+    const docRoot = `/home/${account}/public_html`
+
+    setHostingAccountStatus(`Provisioning ${account}...`)
+
+    Promise.all([
+      createDomain({
+        name: domain,
+        type: 'domain',
+        doc_root: docRoot,
+        php_version: hostingAccountForm.php_version,
+        status: 'active'
+      }),
+      createMailbox({
+        address: mailboxAddress,
+        password,
+        quota_mb: Number(hostingAccountForm.mailbox_quota_mb),
+        enabled: true
+      }),
+      createFtpAccount({
+        username: ftpUsername,
+        password,
+        home_dir: docRoot,
+        quota_mb: Number(hostingAccountForm.ftp_quota_mb),
+        enabled: true
+      }),
+      createDatabase({
+        name: databaseName,
+        owner,
+        encoding: 'UTF8'
+      })
+    ])
+      .then(() => {
+        setHostingAccountStatus(`Hosting account ${account} provisioned. Domain, mailbox, FTP, and database are ready.`)
+        setHostingAccountForm({
+          account: '',
+          domain: '',
+          owner,
+          password: '',
+          php_version: '8.2',
+          mailbox_quota_mb: 2048,
+          ftp_quota_mb: 4096
+        })
+        return loadAll()
+      })
+      .catch((error) => setHostingAccountStatus(error.message))
+  }
+
   const rootDomains = data.domains.filter((domain) => domain.type === 'domain')
   const subdomains = data.domains.filter((domain) => domain.type === 'subdomain')
   const parkingDomains = data.domains.filter((domain) => domain.type === 'parking')
@@ -550,6 +622,62 @@ export function Dashboard() {
       <h1>Server Panel (cPanel-style)</h1>
       <p>Domains, databases, mail, FTP, DNS, files, and core service visibility in one dashboard.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+        <Card title="Account Provisioning (cPanel-like)">
+          <p style={{ marginTop: 0 }}>Create a hosting account and automatically provision domain, email, FTP, and database from one GUI form.</p>
+          <form onSubmit={submitHostingAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="account username (e.g. acme)"
+              value={hostingAccountForm.account}
+              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, account: event.target.value }))}
+            />
+            <input
+              placeholder="primary domain (e.g. acme.com)"
+              value={hostingAccountForm.domain}
+              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, domain: event.target.value }))}
+            />
+            <input
+              placeholder="database owner"
+              value={hostingAccountForm.owner}
+              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, owner: event.target.value }))}
+            />
+            <input
+              type="password"
+              placeholder="account password"
+              value={hostingAccountForm.password}
+              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, password: event.target.value }))}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <input
+                placeholder="PHP version"
+                value={hostingAccountForm.php_version}
+                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, php_version: event.target.value }))}
+              />
+              <input
+                type="number"
+                min={128}
+                placeholder="mailbox quota MB"
+                value={hostingAccountForm.mailbox_quota_mb}
+                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, mailbox_quota_mb: event.target.value }))}
+              />
+              <input
+                type="number"
+                min={256}
+                placeholder="FTP quota MB"
+                value={hostingAccountForm.ftp_quota_mb}
+                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, ftp_quota_mb: event.target.value }))}
+              />
+            </div>
+            <button type="submit">Provision Full Account</button>
+          </form>
+          <ul>
+            <li>Total domains: {data.domains.length}</li>
+            <li>Total mailboxes: {data.mailboxes.length}</li>
+            <li>Total FTP users: {data.ftpAccounts.length}</li>
+            <li>Total databases: {data.databases.length}</li>
+          </ul>
+          <p>{hostingAccountStatus}</p>
+        </Card>
+
         <Card title="Domains">
           <strong>Add Domain</strong>
           <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
