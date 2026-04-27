@@ -29,6 +29,32 @@ go mod tidy
 go run ./cmd/server
 ```
 
+### Backend TLS / SSL
+The API can run over HTTPS with either ACME (Let's Encrypt) or certificate files.
+
+#### ACME mode (default TLS provider)
+Set at least `TLS_DOMAIN` and keep `TLS_MODE` unset (defaults to `acme`):
+
+```bash
+export TLS_DOMAIN=api.example.com
+export TLS_ACME_EMAIL=admin@example.com            # optional but recommended
+export TLS_ACME_CACHE_DIR=/var/lib/server-panel/acme-cache  # optional
+export HTTP_PORT=80                                # optional, defaults to 80
+cd backend
+go run ./cmd/server
+```
+
+#### Certificate file mode
+```bash
+export TLS_MODE=files
+export TLS_CERT_FILE=/etc/letsencrypt/live/api.example.com/fullchain.pem
+export TLS_KEY_FILE=/etc/letsencrypt/live/api.example.com/privkey.pem
+cd backend
+go run ./cmd/server
+```
+
+If no TLS environment variables are set, the backend continues to run on plain HTTP as before.
+
 ### 3) Run frontend
 ```bash
 cd frontend
