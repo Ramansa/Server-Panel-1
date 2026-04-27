@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
   createFileItem,
+  createFtpAccount,
   deleteFileItem,
+  deleteFtpAccount,
   downloadFile,
   getDatabases,
   getDnsRecords,
@@ -11,7 +13,9 @@ import {
   getFtpAccounts,
   getMailboxes,
   getServices,
-  updateFileItem
+  updateFileItem,
+  updateFtpAccount,
+  updateFtpPassword
 } from '../api/client'
 import { Card } from '../components/Card'
 
@@ -128,6 +132,9 @@ export function Dashboard() {
   const [editorContent, setEditorContent] = useState('')
   const [renamePath, setRenamePath] = useState('')
   const [fileStatus, setFileStatus] = useState('')
+  const [ftpForm, setFtpForm] = useState({ username: '', password: '', home_dir: '/home/', quota_mb: 1024 })
+  const [ftpPasswordForm, setFtpPasswordForm] = useState({ username: '', password: '' })
+  const [ftpStatus, setFtpStatus] = useState('')
 
   const loadAll = () =>
     Promise.all([
@@ -150,6 +157,11 @@ export function Dashboard() {
     getFiles()
       .then((fileItems) => setData((prev) => ({ ...prev, fileItems })))
       .catch((error) => setFileStatus(error.message))
+
+  const refreshFtp = () =>
+    getFtpAccounts()
+      .then((ftpAccounts) => setData((prev) => ({ ...prev, ftpAccounts })))
+      .catch((error) => setFtpStatus(error.message))
 
   const submitNewItem = (event) => {
     event.preventDefault()
@@ -216,6 +228,51 @@ export function Dashboard() {
       .catch((error) => setFileStatus(error.message))
   }
 
+  const submitFtpAccount = (event) => {
+    event.preventDefault()
+    setFtpStatus('Creating FTP account...')
+    createFtpAccount({ ...ftpForm, quota_mb: Number(ftpForm.quota_mb) })
+      .then(() => {
+        setFtpStatus('FTP account created.')
+        setFtpForm({ username: '', password: '', home_dir: '/home/', quota_mb: 1024 })
+        return refreshFtp()
+      })
+      .catch((error) => setFtpStatus(error.message))
+  }
+
+  const toggleFtpEnabled = (account) => {
+    setFtpStatus(`Updating ${account.username}...`)
+    updateFtpAccount(account.username, { enabled: !account.enabled })
+      .then(() => {
+        setFtpStatus('FTP account updated.')
+        return refreshFtp()
+      })
+      .catch((error) => setFtpStatus(error.message))
+  }
+
+  const removeFtp = (username) => {
+    setFtpStatus(`Deleting ${username}...`)
+    deleteFtpAccount(username)
+      .then(() => {
+        setFtpStatus('FTP account deleted.')
+        return refreshFtp()
+      })
+      .catch((error) => setFtpStatus(error.message))
+  }
+
+  const submitFtpPassword = (event) => {
+    event.preventDefault()
+    if (!ftpPasswordForm.username) return
+    setFtpStatus(`Rotating password for ${ftpPasswordForm.username}...`)
+    updateFtpPassword(ftpPasswordForm.username, { password: ftpPasswordForm.password })
+      .then(() => {
+        setFtpStatus('FTP password rotated.')
+        setFtpPasswordForm({ username: '', password: '' })
+        return refreshFtp()
+      })
+      .catch((error) => setFtpStatus(error.message))
+  }
+
   const downloadSelected = () => {
     if (!selectedFilePath) return
     setFileStatus('Downloading...')
@@ -263,11 +320,62 @@ export function Dashboard() {
         </Card>
 
         <Card title="FTP Accounts">
+          <form onSubmit={submitFtpAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="username"
+              value={ftpForm.username}
+              onChange={(event) => setFtpForm((prev) => ({ ...prev, username: event.target.value }))}
+            />
+            <input
+              type="password"
+              placeholder="password"
+              value={ftpForm.password}
+              onChange={(event) => setFtpForm((prev) => ({ ...prev, password: event.target.value }))}
+            />
+            <input
+              placeholder="/home/account/public_html"
+              value={ftpForm.home_dir}
+              onChange={(event) => setFtpForm((prev) => ({ ...prev, home_dir: event.target.value }))}
+            />
+            <input
+              type="number"
+              min={1}
+              placeholder="quota (MB)"
+              value={ftpForm.quota_mb}
+              onChange={(event) => setFtpForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
+            />
+            <button type="submit">Create FTP User</button>
+          </form>
+
+          <form onSubmit={submitFtpPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="username for password reset"
+              value={ftpPasswordForm.username}
+              onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, username: event.target.value }))}
+            />
+            <input
+              type="password"
+              placeholder="new password"
+              value={ftpPasswordForm.password}
+              onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
+            />
+            <button type="submit">Reset FTP Password</button>
+          </form>
+
           <ul>
             {data.ftpAccounts.map((f) => (
-              <li key={f.id}>{f.username} → {f.home_dir} ({f.quota_mb}MB)</li>
+              <li key={f.id}>
+                {f.username} → {f.home_dir} ({f.quota_mb}MB) [{f.enabled ? 'enabled' : 'disabled'}]
+                {' '}
+                <button type="button" onClick={() => toggleFtpEnabled(f)}>
+                  {f.enabled ? 'Disable' : 'Enable'}
+                </button>
+                {' '}
+                <button type="button" onClick={() => removeFtp(f.username)}>Delete</button>
+              </li>
             ))}
           </ul>
+          <p>{ftpStatus}</p>
         </Card>
 
         <Card title="DNS Records">

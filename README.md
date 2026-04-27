@@ -10,7 +10,7 @@ A Linux-focused hosting control panel skeleton with:
 - Domain management inventory (`/api/domains`)
 - Database inventory (`/api/databases`)
 - Mailbox inventory (`/api/mailboxes`)
-- FTP account inventory (`/api/ftp-accounts`)
+- FTP account lifecycle management (create/list/update/disable/delete/password reset)
 - DNS records inventory (`/api/dns-records`)
 - File manager (list/create/read/update/delete/download)
 - Service state summary (`/api/services`)
@@ -48,6 +48,10 @@ Or run both:
 - `GET /api/databases`
 - `GET /api/mailboxes`
 - `GET /api/ftp-accounts`
+- `POST /api/ftp-accounts`
+- `PUT /api/ftp-accounts/item?username=<ftp-user>`
+- `DELETE /api/ftp-accounts/item?username=<ftp-user>`
+- `PUT /api/ftp-accounts/password?username=<ftp-user>`
 - `GET /api/dns-records`
 - `GET /api/files`
 - `POST /api/files`
