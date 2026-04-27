@@ -16,10 +16,27 @@ type Database struct {
 }
 
 type Mailbox struct {
-	ID       int64  `json:"id"`
+	ID               int64  `json:"id"`
+	Address          string `json:"address"`
+	QuotaMB          int    `json:"quota_mb"`
+	PasswordMasked   bool   `json:"password_masked"`
+	Enabled          bool   `json:"enabled"`
+	LastPasswordSync string `json:"last_password_sync,omitempty"`
+}
+
+type CreateMailboxInput struct {
 	Address  string `json:"address"`
+	Password string `json:"password"`
 	QuotaMB  int    `json:"quota_mb"`
-	Password string `json:"password,omitempty"`
+}
+
+type UpdateMailboxInput struct {
+	QuotaMB int   `json:"quota_mb"`
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+type UpdateMailboxPasswordInput struct {
+	Password string `json:"password"`
 }
 
 type FTPAccount struct {

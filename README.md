@@ -47,6 +47,10 @@ Or run both:
 - `POST /api/domains`
 - `GET /api/databases`
 - `GET /api/mailboxes`
+- `POST /api/mailboxes`
+- `PUT /api/mailboxes/item?address=<email>`
+- `DELETE /api/mailboxes/item?address=<email>`
+- `PUT /api/mailboxes/password?address=<email>`
 - `GET /api/ftp-accounts`
 - `POST /api/ftp-accounts`
 - `PUT /api/ftp-accounts/item?username=<ftp-user>`

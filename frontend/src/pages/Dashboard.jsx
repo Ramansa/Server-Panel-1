@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
+  createMailbox,
   createDnsRecord,
   createFileItem,
   createFtpAccount,
+  deleteMailbox,
   deleteDnsRecord,
   deleteFileItem,
   deleteFtpAccount,
@@ -16,6 +18,8 @@ import {
   getFtpAccounts,
   getMailboxes,
   getServices,
+  updateMailbox,
+  updateMailboxPassword,
   updateFileItem,
   updateFtpAccount, updateFtpPassword
 } from '../api/client'
@@ -135,6 +139,9 @@ export function Dashboard() {
   const [renamePath, setRenamePath] = useState('')
   const [fileStatus, setFileStatus] = useState('')
   const [ftpForm, setFtpForm] = useState({ username: '', password: '', home_dir: '/home/', quota_mb: 1024 })
+  const [mailboxForm, setMailboxForm] = useState({ address: '', password: '', quota_mb: 1024 })
+  const [mailboxPasswordForm, setMailboxPasswordForm] = useState({ address: '', password: '' })
+  const [mailStatus, setMailStatus] = useState('')
   const [ftpPasswordForm, setFtpPasswordForm] = useState({ username: '', password: '' })
   const [ftpStatus, setFtpStatus] = useState('')
   const [dnsFilterZone, setDnsFilterZone] = useState('')
@@ -168,6 +175,11 @@ export function Dashboard() {
     getFtpAccounts()
       .then((ftpAccounts) => setData((prev) => ({ ...prev, ftpAccounts })))
       .catch((error) => setFtpStatus(error.message))
+
+  const refreshMailboxes = () =>
+    getMailboxes()
+      .then((mailboxes) => setData((prev) => ({ ...prev, mailboxes })))
+      .catch((error) => setMailStatus(error.message))
 
   const refreshDns = () =>
     getDnsRecords(dnsFilterZone)
@@ -249,6 +261,51 @@ export function Dashboard() {
         return refreshFtp()
       })
       .catch((error) => setFtpStatus(error.message))
+  }
+
+  const submitMailbox = (event) => {
+    event.preventDefault()
+    setMailStatus('Creating mailbox...')
+    createMailbox({ ...mailboxForm, quota_mb: Number(mailboxForm.quota_mb) })
+      .then(() => {
+        setMailStatus('Mailbox created.')
+        setMailboxForm({ address: '', password: '', quota_mb: 1024 })
+        return refreshMailboxes()
+      })
+      .catch((error) => setMailStatus(error.message))
+  }
+
+  const toggleMailboxEnabled = (mailbox) => {
+    setMailStatus(`Updating ${mailbox.address}...`)
+    updateMailbox(mailbox.address, { enabled: !mailbox.enabled })
+      .then(() => {
+        setMailStatus('Mailbox updated.')
+        return refreshMailboxes()
+      })
+      .catch((error) => setMailStatus(error.message))
+  }
+
+  const removeMailbox = (address) => {
+    setMailStatus(`Deleting ${address}...`)
+    deleteMailbox(address)
+      .then(() => {
+        setMailStatus('Mailbox deleted.')
+        return refreshMailboxes()
+      })
+      .catch((error) => setMailStatus(error.message))
+  }
+
+  const submitMailboxPassword = (event) => {
+    event.preventDefault()
+    if (!mailboxPasswordForm.address) return
+    setMailStatus(`Rotating password for ${mailboxPasswordForm.address}...`)
+    updateMailboxPassword(mailboxPasswordForm.address, { password: mailboxPasswordForm.password })
+      .then(() => {
+        setMailStatus('Mailbox password rotated.')
+        setMailboxPasswordForm({ address: '', password: '' })
+        return refreshMailboxes()
+      })
+      .catch((error) => setMailStatus(error.message))
   }
 
   const toggleFtpEnabled = (account) => {
@@ -362,11 +419,55 @@ export function Dashboard() {
         </Card>
 
         <Card title="Mailboxes">
+          <form onSubmit={submitMailbox} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="user@example.com"
+              value={mailboxForm.address}
+              onChange={(event) => setMailboxForm((prev) => ({ ...prev, address: event.target.value }))}
+            />
+            <input
+              type="password"
+              placeholder="password"
+              value={mailboxForm.password}
+              onChange={(event) => setMailboxForm((prev) => ({ ...prev, password: event.target.value }))}
+            />
+            <input
+              type="number"
+              min={1}
+              placeholder="quota (MB)"
+              value={mailboxForm.quota_mb}
+              onChange={(event) => setMailboxForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
+            />
+            <button type="submit">Create Mailbox</button>
+          </form>
+          <form onSubmit={submitMailboxPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="mailbox for password reset"
+              value={mailboxPasswordForm.address}
+              onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, address: event.target.value }))}
+            />
+            <input
+              type="password"
+              placeholder="new mailbox password"
+              value={mailboxPasswordForm.password}
+              onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
+            />
+            <button type="submit">Reset Mailbox Password</button>
+          </form>
           <ul>
             {data.mailboxes.map((m) => (
-              <li key={m.id}>{m.address} - {m.quota_mb}MB</li>
+              <li key={m.id}>
+                {m.address} - {m.quota_mb}MB [{m.enabled ? 'enabled' : 'disabled'}]
+                {' '}
+                <button type="button" onClick={() => toggleMailboxEnabled(m)}>
+                  {m.enabled ? 'Disable' : 'Enable'}
+                </button>
+                {' '}
+                <button type="button" onClick={() => removeMailbox(m.address)}>Delete</button>
+              </li>
             ))}
           </ul>
+          <p>{mailStatus}</p>
         </Card>
 
         <Card title="FTP Accounts">

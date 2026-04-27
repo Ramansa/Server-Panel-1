@@ -62,6 +62,65 @@ func TestFTPAccountLifecycle(t *testing.T) {
 	}
 }
 
+func TestMailboxLifecycle(t *testing.T) {
+	store, err := Connect("")
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	ctx := context.Background()
+
+	created, err := store.CreateMailbox(ctx, models.CreateMailboxInput{
+		Address:  "ops@example.com",
+		Password: "SuperSecret123",
+		QuotaMB:  4096,
+	})
+	if err != nil {
+		t.Fatalf("CreateMailbox() error = %v", err)
+	}
+	if created.Address != "ops@example.com" {
+		t.Fatalf("expected address ops@example.com, got %s", created.Address)
+	}
+
+	enabled := false
+	updated, err := store.UpdateMailbox(ctx, "ops@example.com", models.UpdateMailboxInput{
+		Enabled: &enabled,
+		QuotaMB: 2048,
+	})
+	if err != nil {
+		t.Fatalf("UpdateMailbox() error = %v", err)
+	}
+	if updated.Enabled {
+		t.Fatal("expected mailbox to be disabled")
+	}
+	if updated.QuotaMB != 2048 {
+		t.Fatalf("expected quota 2048, got %d", updated.QuotaMB)
+	}
+
+	rotated, err := store.UpdateMailboxPassword(ctx, "ops@example.com", models.UpdateMailboxPasswordInput{
+		Password: "EvenMoreSecret123",
+	})
+	if err != nil {
+		t.Fatalf("UpdateMailboxPassword() error = %v", err)
+	}
+	if rotated.LastPasswordSync == "" {
+		t.Fatal("expected LastPasswordSync to be populated")
+	}
+
+	if err := store.DeleteMailbox(ctx, "ops@example.com"); err != nil {
+		t.Fatalf("DeleteMailbox() error = %v", err)
+	}
+
+	mailboxes, err := store.ListMailboxes(ctx)
+	if err != nil {
+		t.Fatalf("ListMailboxes() error = %v", err)
+	}
+	for _, mailbox := range mailboxes {
+		if mailbox.Address == "ops@example.com" {
+			t.Fatal("deleted mailbox still present")
+		}
+	}
+}
+
 func TestDNSRecordLifecycle(t *testing.T) {
 	store, err := Connect("")
 	if err != nil {
