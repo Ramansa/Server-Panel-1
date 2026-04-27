@@ -61,3 +61,50 @@ func TestFTPAccountLifecycle(t *testing.T) {
 		}
 	}
 }
+
+func TestDNSRecordLifecycle(t *testing.T) {
+	store, err := Connect("")
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	ctx := context.Background()
+
+	created, err := store.CreateDNSRecord(ctx, models.CreateDNSRecordInput{
+		Zone:  "example.com",
+		Type:  "A",
+		Name:  "app",
+		Value: "198.51.100.42",
+		TTL:   600,
+	})
+	if err != nil {
+		t.Fatalf("CreateDNSRecord() error = %v", err)
+	}
+	if created.Zone != "example.com" {
+		t.Fatalf("expected zone example.com, got %s", created.Zone)
+	}
+
+	priority := 20
+	updated, err := store.UpdateDNSRecord(ctx, created.ID, models.UpdateDNSRecordInput{
+		Type:     "MX",
+		Value:    "mail.example.com",
+		Priority: &priority,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDNSRecord() error = %v", err)
+	}
+	if updated.Type != "MX" || updated.Priority == nil || *updated.Priority != 20 {
+		t.Fatalf("expected MX priority 20, got %+v", updated)
+	}
+
+	zoneFile, err := store.RenderZoneFile(ctx, "example.com")
+	if err != nil {
+		t.Fatalf("RenderZoneFile() error = %v", err)
+	}
+	if zoneFile == "" {
+		t.Fatal("expected non-empty zone file")
+	}
+
+	if err := store.DeleteDNSRecord(ctx, created.ID); err != nil {
+		t.Fatalf("DeleteDNSRecord() error = %v", err)
+	}
+}

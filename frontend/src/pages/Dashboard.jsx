@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import {
+  createDnsRecord,
   createFileItem,
   createFtpAccount,
+  deleteDnsRecord,
   deleteFileItem,
   deleteFtpAccount,
   downloadFile,
   getDatabases,
   getDnsRecords,
+  getDnsZoneFile,
   getDomains,
   getFileItem,
   getFiles,
@@ -14,8 +17,7 @@ import {
   getMailboxes,
   getServices,
   updateFileItem,
-  updateFtpAccount,
-  updateFtpPassword
+  updateFtpAccount, updateFtpPassword
 } from '../api/client'
 import { Card } from '../components/Card'
 
@@ -135,6 +137,10 @@ export function Dashboard() {
   const [ftpForm, setFtpForm] = useState({ username: '', password: '', home_dir: '/home/', quota_mb: 1024 })
   const [ftpPasswordForm, setFtpPasswordForm] = useState({ username: '', password: '' })
   const [ftpStatus, setFtpStatus] = useState('')
+  const [dnsFilterZone, setDnsFilterZone] = useState('')
+  const [dnsForm, setDnsForm] = useState({ zone: 'example.com', type: 'A', name: '@', value: '', ttl: 3600, priority: 10 })
+  const [dnsStatus, setDnsStatus] = useState('')
+  const [zonefileOutput, setZonefileOutput] = useState('')
 
   const loadAll = () =>
     Promise.all([
@@ -162,6 +168,11 @@ export function Dashboard() {
     getFtpAccounts()
       .then((ftpAccounts) => setData((prev) => ({ ...prev, ftpAccounts })))
       .catch((error) => setFtpStatus(error.message))
+
+  const refreshDns = () =>
+    getDnsRecords(dnsFilterZone)
+      .then((dnsRecords) => setData((prev) => ({ ...prev, dnsRecords })))
+      .catch((error) => setDnsStatus(error.message))
 
   const submitNewItem = (event) => {
     event.preventDefault()
@@ -290,6 +301,45 @@ export function Dashboard() {
       .catch((error) => setFileStatus(error.message))
   }
 
+  const submitDnsRecord = (event) => {
+    event.preventDefault()
+    setDnsStatus('Saving DNS record...')
+    const payload = {
+      ...dnsForm,
+      ttl: Number(dnsForm.ttl),
+      priority: ['MX', 'SRV'].includes(dnsForm.type) ? Number(dnsForm.priority) : undefined
+    }
+    createDnsRecord(payload)
+      .then(() => {
+        setDnsStatus('DNS record created.')
+        setDnsForm((prev) => ({ ...prev, name: '@', value: '' }))
+        return refreshDns()
+      })
+      .catch((error) => setDnsStatus(error.message))
+  }
+
+  const removeDnsRecord = (id) => {
+    setDnsStatus(`Deleting DNS record #${id}...`)
+    deleteDnsRecord(id)
+      .then(() => {
+        setDnsStatus('DNS record deleted.')
+        return refreshDns()
+      })
+      .catch((error) => setDnsStatus(error.message))
+  }
+
+  const loadZonefile = () => {
+    const zone = dnsFilterZone || dnsForm.zone
+    if (!zone) return
+    setDnsStatus(`Rendering zone file for ${zone}...`)
+    getDnsZoneFile(zone)
+      .then((payload) => {
+        setZonefileOutput(payload.zonefile || '')
+        setDnsStatus(`Zone file rendered for ${payload.zone}.`)
+      })
+      .catch((error) => setDnsStatus(error.message))
+  }
+
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <h1>Server Panel (cPanel-style)</h1>
@@ -379,11 +429,75 @@ export function Dashboard() {
         </Card>
 
         <Card title="DNS Records">
+          <form onSubmit={submitDnsRecord} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="zone (example.com)"
+              value={dnsForm.zone}
+              onChange={(event) => setDnsForm((prev) => ({ ...prev, zone: event.target.value }))}
+            />
+            <select
+              value={dnsForm.type}
+              onChange={(event) => setDnsForm((prev) => ({ ...prev, type: event.target.value }))}
+            >
+              {['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'].map((recordType) => (
+                <option key={recordType} value={recordType}>{recordType}</option>
+              ))}
+            </select>
+            <input
+              placeholder="name (@, www, mail)"
+              value={dnsForm.name}
+              onChange={(event) => setDnsForm((prev) => ({ ...prev, name: event.target.value }))}
+            />
+            <input
+              placeholder="value"
+              value={dnsForm.value}
+              onChange={(event) => setDnsForm((prev) => ({ ...prev, value: event.target.value }))}
+            />
+            <input
+              type="number"
+              min={60}
+              max={604800}
+              placeholder="ttl"
+              value={dnsForm.ttl}
+              onChange={(event) => setDnsForm((prev) => ({ ...prev, ttl: event.target.value }))}
+            />
+            {['MX', 'SRV'].includes(dnsForm.type) && (
+              <input
+                type="number"
+                min={0}
+                max={65535}
+                placeholder="priority"
+                value={dnsForm.priority}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, priority: event.target.value }))}
+              />
+            )}
+            <button type="submit">Create DNS Record</button>
+          </form>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="Filter zone (optional)"
+              value={dnsFilterZone}
+              onChange={(event) => setDnsFilterZone(event.target.value)}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={refreshDns}>Apply Filter</button>
+              <button type="button" onClick={loadZonefile}>Generate Zone File</button>
+            </div>
+          </div>
           <ul>
             {data.dnsRecords.map((r) => (
-              <li key={r.id}>{r.type} {r.name} → {r.value} (TTL {r.ttl})</li>
+              <li key={r.id}>
+                [{r.zone}] {r.type} {r.name} → {r.value}
+                {r.priority !== undefined && r.priority !== null ? ` (priority ${r.priority})` : ''}
+                {' '}
+                (TTL {r.ttl})
+                {' '}
+                <button type="button" onClick={() => removeDnsRecord(r.id)}>Delete</button>
+              </li>
             ))}
           </ul>
+          {zonefileOutput && <textarea rows={8} readOnly value={zonefileOutput} />}
+          <p>{dnsStatus}</p>
         </Card>
 
         <Card title="File Manager">
