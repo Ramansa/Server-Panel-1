@@ -10,6 +10,104 @@ import {
 } from '../api/client'
 import { Card } from '../components/Card'
 
+const CPANEL_FEATURE_GROUPS = [
+  {
+    title: 'Domains',
+    features: [
+      'Domains',
+      'Subdomains',
+      'Aliases',
+      'Redirects',
+      'Zone Editor',
+      'Dynamic DNS'
+    ]
+  },
+  {
+    title: 'Email',
+    features: [
+      'Email Accounts',
+      'Forwarders',
+      'Autoresponders',
+      'Email Routing',
+      'Global Email Filters',
+      'Track Delivery',
+      'Spam Filters'
+    ]
+  },
+  {
+    title: 'Files',
+    features: [
+      'File Manager',
+      'Disk Usage',
+      'Directory Privacy',
+      'FTP Accounts',
+      'Git Version Control',
+      'Backup Wizard'
+    ]
+  },
+  {
+    title: 'Databases',
+    features: [
+      'MySQL Databases',
+      'phpMyAdmin',
+      'Remote MySQL',
+      'PostgreSQL Databases'
+    ]
+  },
+  {
+    title: 'Software',
+    features: [
+      'MultiPHP Manager',
+      'MultiPHP INI Editor',
+      'Application Manager',
+      'Optimize Website',
+      'Select PHP Version'
+    ]
+  },
+  {
+    title: 'Security',
+    features: [
+      'SSL/TLS Status',
+      'IP Blocker',
+      'Hotlink Protection',
+      'Two-Factor Authentication',
+      'SSH Access',
+      'ModSecurity'
+    ]
+  },
+  {
+    title: 'Advanced',
+    features: [
+      'Cron Jobs',
+      'Indexes',
+      'MIME Types',
+      'Error Pages',
+      'API Tokens',
+      'Terminal'
+    ]
+  },
+  {
+    title: 'Metrics',
+    features: [
+      'AWStats',
+      'Visitors',
+      'Bandwidth',
+      'Errors',
+      'Resource Usage'
+    ]
+  },
+  {
+    title: 'Preferences',
+    features: [
+      'Password & Security',
+      'User Manager',
+      'Contact Information',
+      'Locale',
+      'Change Style'
+    ]
+  }
+]
+
 export function Dashboard() {
   const [data, setData] = useState({
     domains: [],
@@ -98,6 +196,24 @@ export function Dashboard() {
           </ul>
         </Card>
       </div>
+
+      <section style={{ marginTop: 24 }}>
+        <Card title="All cPanel Features (Catalog)">
+          <p style={{ marginTop: 0 }}>Expanded feature map for future parity planning.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {CPANEL_FEATURE_GROUPS.map((group) => (
+              <div key={group.title}>
+                <h3 style={{ margin: '0 0 8px 0' }}>{group.title}</h3>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {group.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
     </main>
   )
 }
