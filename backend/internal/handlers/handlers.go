@@ -25,6 +25,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/domains", a.domains)
 	mux.HandleFunc("/api/databases", a.databases)
 	mux.HandleFunc("/api/mailboxes", a.mailboxes)
+	mux.HandleFunc("/api/mailboxes/item", a.mailboxItem)
+	mux.HandleFunc("/api/mailboxes/password", a.mailboxPassword)
 	mux.HandleFunc("/api/ftp-accounts", a.ftpAccounts)
 	mux.HandleFunc("/api/ftp-accounts/item", a.ftpAccountItem)
 	mux.HandleFunc("/api/ftp-accounts/password", a.ftpPassword)
@@ -84,16 +86,95 @@ func (a *API) databases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) mailboxes(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		items, err := a.Store.ListMailboxes(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var input models.CreateMailboxInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		created, err := a.Store.CreateMailbox(r.Context(), input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func mailboxAddressFromQuery(r *http.Request) (string, error) {
+	rawAddress := strings.TrimSpace(r.URL.Query().Get("address"))
+	if rawAddress == "" {
+		return "", errors.New("missing query parameter: address")
+	}
+	decoded, err := url.QueryUnescape(rawAddress)
+	if err != nil {
+		return "", errors.New("invalid address")
+	}
+	return decoded, nil
+}
+
+func (a *API) mailboxItem(w http.ResponseWriter, r *http.Request) {
+	address, err := mailboxAddressFromQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var input models.UpdateMailboxInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		updated, err := a.Store.UpdateMailbox(r.Context(), address, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := a.Store.DeleteMailbox(r.Context(), address); err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *API) mailboxPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	items, err := a.Store.ListMailboxes(r.Context())
+	address, err := mailboxAddressFromQuery(r)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	var input models.UpdateMailboxPasswordInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	updated, err := a.Store.UpdateMailboxPassword(r.Context(), address, input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (a *API) ftpAccounts(w http.ResponseWriter, r *http.Request) {

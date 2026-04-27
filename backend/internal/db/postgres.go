@@ -16,22 +16,31 @@ import (
 )
 
 type Store struct {
-	mu             sync.RWMutex
-	domains        []models.Domain
-	databases      []models.Database
-	mailboxes      []models.Mailbox
-	ftpAccounts    []models.FTPAccount
-	ftpCredentials map[string]string
-	dnsRecords     []models.DNSRecord
-	fileItems      []models.FileItem
-	nextID         int64
+	mu              sync.RWMutex
+	domains         []models.Domain
+	databases       []models.Database
+	mailboxes       []models.Mailbox
+	mailCredentials map[string]string
+	ftpAccounts     []models.FTPAccount
+	ftpCredentials  map[string]string
+	dnsRecords      []models.DNSRecord
+	fileItems       []models.FileItem
+	nextID          int64
 }
 
 func Connect(_ string) (*Store, error) {
 	return &Store{
 		domains:   []models.Domain{{ID: 1, Name: "example.com", DocRoot: "/home/example/public_html", PHPVersion: "8.2", Status: "active"}},
 		databases: []models.Database{{ID: 2, Name: "example_app", Owner: "example", Encoding: "UTF8"}},
-		mailboxes: []models.Mailbox{{ID: 3, Address: "admin@example.com", QuotaMB: 2048}},
+		mailboxes: []models.Mailbox{{
+			ID:               3,
+			Address:          "admin@example.com",
+			QuotaMB:          2048,
+			PasswordMasked:   true,
+			Enabled:          true,
+			LastPasswordSync: "2026-04-20T09:00:00Z",
+		}},
+		mailCredentials: map[string]string{"admin@example.com": "seed-password"},
 		ftpAccounts: []models.FTPAccount{{
 			ID:               4,
 			Username:         "exampleftp",
@@ -89,6 +98,133 @@ func (s *Store) ListMailboxes(_ context.Context) ([]models.Mailbox, error) {
 	out := make([]models.Mailbox, len(s.mailboxes))
 	copy(out, s.mailboxes)
 	return out, nil
+}
+
+func normalizeEmailAddress(raw string) (string, error) {
+	clean := strings.TrimSpace(strings.ToLower(raw))
+	matched, _ := regexp.MatchString(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`, clean)
+	if !matched {
+		return "", errors.New("invalid email address")
+	}
+	return clean, nil
+}
+
+func (s *Store) CreateMailbox(_ context.Context, input models.CreateMailboxInput) (models.Mailbox, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	address, err := normalizeEmailAddress(input.Address)
+	if err != nil {
+		return models.Mailbox{}, err
+	}
+	if err := validateFTPPassword(input.Password); err != nil {
+		return models.Mailbox{}, err
+	}
+	if input.QuotaMB <= 0 {
+		return models.Mailbox{}, errors.New("quota_mb must be > 0")
+	}
+	for _, mailbox := range s.mailboxes {
+		if mailbox.Address == address {
+			return models.Mailbox{}, errors.New("mailbox already exists")
+		}
+	}
+
+	created := models.Mailbox{
+		ID:               s.nextID,
+		Address:          address,
+		QuotaMB:          input.QuotaMB,
+		PasswordMasked:   true,
+		Enabled:          true,
+		LastPasswordSync: time.Now().UTC().Format(time.RFC3339),
+	}
+	s.nextID++
+	s.mailboxes = append(s.mailboxes, created)
+	s.mailCredentials[address] = input.Password
+	return created, nil
+}
+
+func (s *Store) UpdateMailbox(_ context.Context, address string, input models.UpdateMailboxInput) (models.Mailbox, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanAddress, err := normalizeEmailAddress(address)
+	if err != nil {
+		return models.Mailbox{}, err
+	}
+
+	index := -1
+	for i, mailbox := range s.mailboxes {
+		if mailbox.Address == cleanAddress {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.Mailbox{}, errors.New("mailbox not found")
+	}
+
+	mailbox := s.mailboxes[index]
+	if input.QuotaMB != 0 {
+		if input.QuotaMB < 0 {
+			return models.Mailbox{}, errors.New("quota_mb must be > 0")
+		}
+		mailbox.QuotaMB = input.QuotaMB
+	}
+	if input.Enabled != nil {
+		mailbox.Enabled = *input.Enabled
+	}
+	s.mailboxes[index] = mailbox
+	return mailbox, nil
+}
+
+func (s *Store) UpdateMailboxPassword(_ context.Context, address string, input models.UpdateMailboxPasswordInput) (models.Mailbox, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanAddress, err := normalizeEmailAddress(address)
+	if err != nil {
+		return models.Mailbox{}, err
+	}
+	if err := validateFTPPassword(input.Password); err != nil {
+		return models.Mailbox{}, err
+	}
+
+	index := -1
+	for i, mailbox := range s.mailboxes {
+		if mailbox.Address == cleanAddress {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.Mailbox{}, errors.New("mailbox not found")
+	}
+
+	s.mailCredentials[cleanAddress] = input.Password
+	mailbox := s.mailboxes[index]
+	mailbox.PasswordMasked = true
+	mailbox.LastPasswordSync = time.Now().UTC().Format(time.RFC3339)
+	s.mailboxes[index] = mailbox
+	return mailbox, nil
+}
+
+func (s *Store) DeleteMailbox(_ context.Context, address string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanAddress, err := normalizeEmailAddress(address)
+	if err != nil {
+		return err
+	}
+
+	for i, mailbox := range s.mailboxes {
+		if mailbox.Address == cleanAddress {
+			s.mailboxes = append(s.mailboxes[:i], s.mailboxes[i+1:]...)
+			delete(s.mailCredentials, cleanAddress)
+			return nil
+		}
+	}
+	return errors.New("mailbox not found")
 }
 
 func normalizeFTPUsername(raw string) (string, error) {

@@ -14,6 +14,13 @@ async function request(path, options = {}) {
 export const getDomains = () => request('/api/domains')
 export const getDatabases = () => request('/api/databases')
 export const getMailboxes = () => request('/api/mailboxes')
+export const createMailbox = (payload) => request('/api/mailboxes', { method: 'POST', body: JSON.stringify(payload) })
+export const updateMailbox = (address, payload) =>
+  request(`/api/mailboxes/item?address=${encodeURIComponent(address)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const updateMailboxPassword = (address, payload) =>
+  request(`/api/mailboxes/password?address=${encodeURIComponent(address)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteMailbox = (address) =>
+  request(`/api/mailboxes/item?address=${encodeURIComponent(address)}`, { method: 'DELETE' })
 export const getFtpAccounts = () => request('/api/ftp-accounts')
 export const createFtpAccount = (payload) => request('/api/ftp-accounts', { method: 'POST', body: JSON.stringify(payload) })
 export const updateFtpAccount = (username, payload) =>
