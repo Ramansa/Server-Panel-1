@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -12,22 +13,32 @@ import (
 )
 
 type Store struct {
-	mu          sync.RWMutex
-	domains     []models.Domain
-	databases   []models.Database
-	mailboxes   []models.Mailbox
-	ftpAccounts []models.FTPAccount
-	dnsRecords  []models.DNSRecord
-	fileItems   []models.FileItem
-	nextID      int64
+	mu             sync.RWMutex
+	domains        []models.Domain
+	databases      []models.Database
+	mailboxes      []models.Mailbox
+	ftpAccounts    []models.FTPAccount
+	ftpCredentials map[string]string
+	dnsRecords     []models.DNSRecord
+	fileItems      []models.FileItem
+	nextID         int64
 }
 
 func Connect(_ string) (*Store, error) {
 	return &Store{
-		domains:     []models.Domain{{ID: 1, Name: "example.com", DocRoot: "/home/example/public_html", PHPVersion: "8.2", Status: "active"}},
-		databases:   []models.Database{{ID: 2, Name: "example_app", Owner: "example", Encoding: "UTF8"}},
-		mailboxes:   []models.Mailbox{{ID: 3, Address: "admin@example.com", QuotaMB: 2048}},
-		ftpAccounts: []models.FTPAccount{{ID: 4, Username: "exampleftp", HomeDir: "/home/example/public_html", QuotaMB: 1024}},
+		domains:   []models.Domain{{ID: 1, Name: "example.com", DocRoot: "/home/example/public_html", PHPVersion: "8.2", Status: "active"}},
+		databases: []models.Database{{ID: 2, Name: "example_app", Owner: "example", Encoding: "UTF8"}},
+		mailboxes: []models.Mailbox{{ID: 3, Address: "admin@example.com", QuotaMB: 2048}},
+		ftpAccounts: []models.FTPAccount{{
+			ID:               4,
+			Username:         "exampleftp",
+			HomeDir:          "/home/example/public_html",
+			QuotaMB:          1024,
+			PasswordMasked:   true,
+			Enabled:          true,
+			LastPasswordSync: "2026-04-20T09:00:00Z",
+		}},
+		ftpCredentials: map[string]string{"exampleftp": "seed-password"},
 		dnsRecords: []models.DNSRecord{
 			{ID: 5, Type: "A", Name: "@", Value: "203.0.113.10", TTL: 3600},
 			{ID: 6, Type: "MX", Name: "@", Value: "mail.example.com", TTL: 3600},
@@ -75,12 +86,172 @@ func (s *Store) ListMailboxes(_ context.Context) ([]models.Mailbox, error) {
 	return out, nil
 }
 
+func normalizeFTPUsername(raw string) (string, error) {
+	clean := strings.TrimSpace(strings.ToLower(raw))
+	matched, _ := regexp.MatchString(`^[a-z0-9][a-z0-9._-]{2,31}$`, clean)
+	if !matched {
+		return "", errors.New("invalid username: use 3-32 chars [a-z0-9._-]")
+	}
+	return clean, nil
+}
+
+func normalizeHomeDir(raw string) (string, error) {
+	clean := path.Clean(strings.TrimSpace(raw))
+	if clean == "." || clean == "/" || clean == "" {
+		return "", errors.New("invalid home_dir")
+	}
+	if !strings.HasPrefix(clean, "/home/") {
+		return "", errors.New("home_dir must be under /home")
+	}
+	return clean, nil
+}
+
+func validateFTPPassword(password string) error {
+	if len(strings.TrimSpace(password)) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	return nil
+}
+
 func (s *Store) ListFTPAccounts(_ context.Context) ([]models.FTPAccount, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]models.FTPAccount, len(s.ftpAccounts))
 	copy(out, s.ftpAccounts)
 	return out, nil
+}
+
+func (s *Store) CreateFTPAccount(_ context.Context, input models.CreateFTPAccountInput) (models.FTPAccount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	username, err := normalizeFTPUsername(input.Username)
+	if err != nil {
+		return models.FTPAccount{}, err
+	}
+	if err := validateFTPPassword(input.Password); err != nil {
+		return models.FTPAccount{}, err
+	}
+	homeDir, err := normalizeHomeDir(input.HomeDir)
+	if err != nil {
+		return models.FTPAccount{}, err
+	}
+	if input.QuotaMB <= 0 {
+		return models.FTPAccount{}, errors.New("quota_mb must be > 0")
+	}
+	for _, account := range s.ftpAccounts {
+		if account.Username == username {
+			return models.FTPAccount{}, errors.New("ftp username already exists")
+		}
+	}
+
+	created := models.FTPAccount{
+		ID:               s.nextID,
+		Username:         username,
+		HomeDir:          homeDir,
+		QuotaMB:          input.QuotaMB,
+		PasswordMasked:   true,
+		Enabled:          true,
+		LastPasswordSync: time.Now().UTC().Format(time.RFC3339),
+	}
+	s.nextID++
+	s.ftpAccounts = append(s.ftpAccounts, created)
+	s.ftpCredentials[username] = input.Password
+
+	return created, nil
+}
+
+func (s *Store) UpdateFTPAccount(_ context.Context, username string, input models.UpdateFTPAccountInput) (models.FTPAccount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanUsername, err := normalizeFTPUsername(username)
+	if err != nil {
+		return models.FTPAccount{}, err
+	}
+
+	index := -1
+	for i, account := range s.ftpAccounts {
+		if account.Username == cleanUsername {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.FTPAccount{}, errors.New("ftp account not found")
+	}
+
+	account := s.ftpAccounts[index]
+	if strings.TrimSpace(input.HomeDir) != "" {
+		homeDir, err := normalizeHomeDir(input.HomeDir)
+		if err != nil {
+			return models.FTPAccount{}, err
+		}
+		account.HomeDir = homeDir
+	}
+	if input.QuotaMB != 0 {
+		if input.QuotaMB < 0 {
+			return models.FTPAccount{}, errors.New("quota_mb must be > 0")
+		}
+		account.QuotaMB = input.QuotaMB
+	}
+	if input.Enabled != nil {
+		account.Enabled = *input.Enabled
+	}
+
+	s.ftpAccounts[index] = account
+	return account, nil
+}
+
+func (s *Store) UpdateFTPPassword(_ context.Context, username string, input models.UpdateFTPPasswordInput) (models.FTPAccount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanUsername, err := normalizeFTPUsername(username)
+	if err != nil {
+		return models.FTPAccount{}, err
+	}
+	if err := validateFTPPassword(input.Password); err != nil {
+		return models.FTPAccount{}, err
+	}
+
+	index := -1
+	for i, account := range s.ftpAccounts {
+		if account.Username == cleanUsername {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.FTPAccount{}, errors.New("ftp account not found")
+	}
+
+	s.ftpCredentials[cleanUsername] = input.Password
+	account := s.ftpAccounts[index]
+	account.LastPasswordSync = time.Now().UTC().Format(time.RFC3339)
+	account.PasswordMasked = true
+	s.ftpAccounts[index] = account
+	return account, nil
+}
+
+func (s *Store) DeleteFTPAccount(_ context.Context, username string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanUsername, err := normalizeFTPUsername(username)
+	if err != nil {
+		return err
+	}
+
+	for i, account := range s.ftpAccounts {
+		if account.Username == cleanUsername {
+			s.ftpAccounts = append(s.ftpAccounts[:i], s.ftpAccounts[i+1:]...)
+			delete(s.ftpCredentials, cleanUsername)
+			return nil
+		}
+	}
+
+	return errors.New("ftp account not found")
 }
 
 func (s *Store) ListDNSRecords(_ context.Context) ([]models.DNSRecord, error) {

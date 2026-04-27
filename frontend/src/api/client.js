@@ -15,6 +15,13 @@ export const getDomains = () => request('/api/domains')
 export const getDatabases = () => request('/api/databases')
 export const getMailboxes = () => request('/api/mailboxes')
 export const getFtpAccounts = () => request('/api/ftp-accounts')
+export const createFtpAccount = (payload) => request('/api/ftp-accounts', { method: 'POST', body: JSON.stringify(payload) })
+export const updateFtpAccount = (username, payload) =>
+  request(`/api/ftp-accounts/item?username=${encodeURIComponent(username)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const updateFtpPassword = (username, payload) =>
+  request(`/api/ftp-accounts/password?username=${encodeURIComponent(username)}`, { method: 'PUT', body: JSON.stringify(payload) })
+export const deleteFtpAccount = (username) =>
+  request(`/api/ftp-accounts/item?username=${encodeURIComponent(username)}`, { method: 'DELETE' })
 export const getDnsRecords = () => request('/api/dns-records')
 export const getFiles = () => request('/api/files')
 export const createFileItem = (payload) => request('/api/files', { method: 'POST', body: JSON.stringify(payload) })

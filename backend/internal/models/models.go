@@ -23,10 +23,30 @@ type Mailbox struct {
 }
 
 type FTPAccount struct {
-	ID       int64  `json:"id"`
+	ID               int64  `json:"id"`
+	Username         string `json:"username"`
+	HomeDir          string `json:"home_dir"`
+	QuotaMB          int    `json:"quota_mb"`
+	PasswordMasked   bool   `json:"password_masked"`
+	Enabled          bool   `json:"enabled"`
+	LastPasswordSync string `json:"last_password_sync,omitempty"`
+}
+
+type CreateFTPAccountInput struct {
 	Username string `json:"username"`
+	Password string `json:"password"`
 	HomeDir  string `json:"home_dir"`
 	QuotaMB  int    `json:"quota_mb"`
+}
+
+type UpdateFTPAccountInput struct {
+	HomeDir string `json:"home_dir"`
+	QuotaMB int    `json:"quota_mb"`
+	Enabled *bool  `json:"enabled,omitempty"`
+}
+
+type UpdateFTPPasswordInput struct {
+	Password string `json:"password"`
 }
 
 type DNSRecord struct {
