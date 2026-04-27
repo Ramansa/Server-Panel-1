@@ -2,7 +2,11 @@ package db
 
 import (
 	"context"
+	"errors"
+	"path"
+	"strings"
 	"sync"
+	"time"
 
 	"serverpanel/backend/internal/models"
 )
@@ -91,6 +95,146 @@ func (s *Store) ListFileItems(_ context.Context) ([]models.FileItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]models.FileItem, len(s.fileItems))
-	copy(out, s.fileItems)
+	for i, item := range s.fileItems {
+		item.Content = ""
+		out[i] = item
+	}
 	return out, nil
+}
+
+func normalizeFilePath(input string) (string, error) {
+	clean := path.Clean(strings.TrimSpace(input))
+	if clean == "." || clean == "/" || clean == "" {
+		return "", errors.New("invalid path")
+	}
+	if !strings.HasPrefix(clean, "/") {
+		clean = "/" + clean
+	}
+	return clean, nil
+}
+
+func (s *Store) CreateFileItem(_ context.Context, input models.CreateFileItemInput) (models.FileItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanPath, err := normalizeFilePath(input.Path)
+	if err != nil {
+		return models.FileItem{}, err
+	}
+	kind := strings.ToLower(strings.TrimSpace(input.Kind))
+	if kind != "file" && kind != "directory" {
+		return models.FileItem{}, errors.New("kind must be file or directory")
+	}
+	for _, item := range s.fileItems {
+		if item.Path == cleanPath {
+			return models.FileItem{}, errors.New("path already exists")
+		}
+	}
+
+	created := models.FileItem{
+		ID:       s.nextID,
+		Path:     cleanPath,
+		Kind:     kind,
+		SizeKB:   0,
+		Modified: time.Now().UTC().Format(time.RFC3339),
+		Content:  "",
+	}
+	if kind == "file" {
+		created.Content = input.Content
+		created.SizeKB = len(created.Content) / 1024
+		if len(created.Content)%1024 > 0 {
+			created.SizeKB++
+		}
+	}
+	s.nextID++
+	s.fileItems = append(s.fileItems, created)
+
+	created.Content = ""
+	return created, nil
+}
+
+func (s *Store) GetFileItem(_ context.Context, itemPath string) (models.FileItem, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	cleanPath, err := normalizeFilePath(itemPath)
+	if err != nil {
+		return models.FileItem{}, err
+	}
+	for _, item := range s.fileItems {
+		if item.Path == cleanPath {
+			return item, nil
+		}
+	}
+	return models.FileItem{}, errors.New("file item not found")
+}
+
+func (s *Store) UpdateFileItem(_ context.Context, currentPath string, input models.UpdateFileItemInput) (models.FileItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanCurrent, err := normalizeFilePath(currentPath)
+	if err != nil {
+		return models.FileItem{}, err
+	}
+
+	targetPath := cleanCurrent
+	if strings.TrimSpace(input.Path) != "" {
+		targetPath, err = normalizeFilePath(input.Path)
+		if err != nil {
+			return models.FileItem{}, err
+		}
+	}
+
+	index := -1
+	for i, item := range s.fileItems {
+		if item.Path == cleanCurrent {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return models.FileItem{}, errors.New("file item not found")
+	}
+
+	if targetPath != cleanCurrent {
+		for _, item := range s.fileItems {
+			if item.Path == targetPath {
+				return models.FileItem{}, errors.New("target path already exists")
+			}
+		}
+	}
+
+	item := s.fileItems[index]
+	item.Path = targetPath
+	if item.Kind == "file" && strings.TrimSpace(input.Content) != "" {
+		item.Content = input.Content
+		item.SizeKB = len(item.Content) / 1024
+		if len(item.Content)%1024 > 0 {
+			item.SizeKB++
+		}
+	}
+	item.Modified = time.Now().UTC().Format(time.RFC3339)
+	s.fileItems[index] = item
+
+	item.Content = ""
+	return item, nil
+}
+
+func (s *Store) DeleteFileItem(_ context.Context, itemPath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cleanPath, err := normalizeFilePath(itemPath)
+	if err != nil {
+		return err
+	}
+
+	for i, item := range s.fileItems {
+		if item.Path == cleanPath {
+			s.fileItems = append(s.fileItems[:i], s.fileItems[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("file item not found")
 }

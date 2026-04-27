@@ -43,6 +43,18 @@ type FileItem struct {
 	Kind     string `json:"kind"`
 	SizeKB   int    `json:"size_kb"`
 	Modified string `json:"modified"`
+	Content  string `json:"content,omitempty"`
+}
+
+type CreateFileItemInput struct {
+	Path    string `json:"path"`
+	Kind    string `json:"kind"`
+	Content string `json:"content,omitempty"`
+}
+
+type UpdateFileItemInput struct {
+	Path    string `json:"path"`
+	Content string `json:"content,omitempty"`
 }
 
 type ServiceToggle struct {

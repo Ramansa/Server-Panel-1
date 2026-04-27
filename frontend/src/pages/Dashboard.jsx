@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import {
+  createFileItem,
+  deleteFileItem,
+  downloadFile,
   getDatabases,
   getDnsRecords,
   getDomains,
+  getFileItem,
   getFiles,
   getFtpAccounts,
   getMailboxes,
-  getServices
+  getServices,
+  updateFileItem
 } from '../api/client'
 import { Card } from '../components/Card'
 
@@ -118,8 +123,13 @@ export function Dashboard() {
     fileItems: [],
     services: []
   })
+  const [fileForm, setFileForm] = useState({ path: '', kind: 'file', content: '' })
+  const [selectedFilePath, setSelectedFilePath] = useState('')
+  const [editorContent, setEditorContent] = useState('')
+  const [renamePath, setRenamePath] = useState('')
+  const [fileStatus, setFileStatus] = useState('')
 
-  useEffect(() => {
+  const loadAll = () =>
     Promise.all([
       getDomains(),
       getDatabases(),
@@ -128,12 +138,100 @@ export function Dashboard() {
       getDnsRecords(),
       getFiles(),
       getServices()
-    ])
-      .then(([domains, databases, mailboxes, ftpAccounts, dnsRecords, fileItems, services]) =>
-        setData({ domains, databases, mailboxes, ftpAccounts, dnsRecords, fileItems, services })
-      )
-      .catch((error) => console.error(error))
+    ]).then(([domains, databases, mailboxes, ftpAccounts, dnsRecords, fileItems, services]) =>
+      setData({ domains, databases, mailboxes, ftpAccounts, dnsRecords, fileItems, services })
+    )
+
+  useEffect(() => {
+    loadAll().catch((error) => console.error(error))
   }, [])
+
+  const refreshFiles = () =>
+    getFiles()
+      .then((fileItems) => setData((prev) => ({ ...prev, fileItems })))
+      .catch((error) => setFileStatus(error.message))
+
+  const submitNewItem = (event) => {
+    event.preventDefault()
+    setFileStatus('Saving...')
+    createFileItem(fileForm)
+      .then(() => {
+        setFileStatus('Created.')
+        setFileForm({ path: '', kind: 'file', content: '' })
+        return refreshFiles()
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
+
+  const openFile = (filePath) => {
+    setFileStatus('Loading...')
+    getFileItem(filePath)
+      .then((item) => {
+        setSelectedFilePath(item.path)
+        setRenamePath(item.path)
+        setEditorContent(item.content || '')
+        setFileStatus(`Loaded ${item.path}`)
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
+
+  const saveFile = () => {
+    if (!selectedFilePath) return
+    setFileStatus('Saving...')
+    updateFileItem(selectedFilePath, { content: editorContent })
+      .then((updated) => {
+        setSelectedFilePath(updated.path)
+        setRenamePath(updated.path)
+        setFileStatus('Saved.')
+        return refreshFiles()
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
+
+  const renameItem = () => {
+    if (!selectedFilePath || !renamePath) return
+    setFileStatus('Renaming...')
+    updateFileItem(selectedFilePath, { path: renamePath })
+      .then((updated) => {
+        setSelectedFilePath(updated.path)
+        setRenamePath(updated.path)
+        setFileStatus('Renamed.')
+        return refreshFiles()
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
+
+  const removeItem = (filePath) => {
+    setFileStatus('Deleting...')
+    deleteFileItem(filePath)
+      .then(() => {
+        if (selectedFilePath === filePath) {
+          setSelectedFilePath('')
+          setEditorContent('')
+          setRenamePath('')
+        }
+        setFileStatus('Deleted.')
+        return refreshFiles()
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
+
+  const downloadSelected = () => {
+    if (!selectedFilePath) return
+    setFileStatus('Downloading...')
+    downloadFile(selectedFilePath)
+      .then((payload) => {
+        const blob = new Blob([payload.content || ''], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = payload.path.split('/').pop() || 'download.txt'
+        anchor.click()
+        URL.revokeObjectURL(url)
+        setFileStatus('Downloaded.')
+      })
+      .catch((error) => setFileStatus(error.message))
+  }
 
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
@@ -181,11 +279,49 @@ export function Dashboard() {
         </Card>
 
         <Card title="File Manager">
+          <form onSubmit={submitNewItem} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input
+              placeholder="/home/example/public_html/new.txt"
+              value={fileForm.path}
+              onChange={(event) => setFileForm((prev) => ({ ...prev, path: event.target.value }))}
+            />
+            <select
+              value={fileForm.kind}
+              onChange={(event) => setFileForm((prev) => ({ ...prev, kind: event.target.value }))}
+            >
+              <option value="file">file</option>
+              <option value="directory">directory</option>
+            </select>
+            {fileForm.kind === 'file' && (
+              <textarea
+                placeholder="Initial file content"
+                value={fileForm.content}
+                onChange={(event) => setFileForm((prev) => ({ ...prev, content: event.target.value }))}
+              />
+            )}
+            <button type="submit">Create</button>
+          </form>
           <ul>
             {data.fileItems.map((f) => (
-              <li key={f.id}>{f.kind}: {f.path} ({f.size_kb}KB)</li>
+              <li key={f.id}>
+                {f.kind}: {f.path} ({f.size_kb}KB)
+                {' '}
+                <button type="button" onClick={() => openFile(f.path)} disabled={f.kind !== 'file'}>Edit</button>
+                {' '}
+                <button type="button" onClick={() => removeItem(f.path)}>Delete</button>
+              </li>
             ))}
           </ul>
+          <p>{fileStatus}</p>
+          {selectedFilePath && (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <input value={renamePath} onChange={(event) => setRenamePath(event.target.value)} />
+              <button type="button" onClick={renameItem}>Rename / Move</button>
+              <textarea rows={8} value={editorContent} onChange={(event) => setEditorContent(event.target.value)} />
+              <button type="button" onClick={saveFile}>Save File</button>
+              <button type="button" onClick={downloadSelected}>Download File</button>
+            </div>
+          )}
         </Card>
 
         <Card title="Services">
