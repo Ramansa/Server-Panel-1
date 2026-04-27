@@ -31,7 +31,7 @@ import {
 } from '../api/client'
 import { Card } from '../components/Card'
 
-const CPANEL_FEATURE_GROUPS = [
+const FEATURE_GROUPS = [
   {
     title: 'Domains',
     features: [
@@ -619,10 +619,10 @@ export function Dashboard() {
 
   return (
     <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <h1>Server Panel (cPanel-style)</h1>
+      <h1>Server Panel (control-panel-style)</h1>
       <p>Domains, databases, mail, FTP, DNS, files, and core service visibility in one dashboard.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-        <Card title="Account Provisioning (cPanel-like)">
+        <Card title="Account Provisioning (control-panel-like)">
           <p style={{ marginTop: 0 }}>Create a hosting account and automatically provision domain, email, FTP, and database from one GUI form.</p>
           <form onSubmit={submitHostingAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input
@@ -1060,10 +1060,10 @@ export function Dashboard() {
       </div>
 
       <section style={{ marginTop: 24 }}>
-        <Card title="All cPanel Features (Catalog)">
+        <Card title="All Hosting Features (Catalog)">
           <p style={{ marginTop: 0 }}>Expanded feature map for future parity planning.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-            {CPANEL_FEATURE_GROUPS.map((group) => (
+            {FEATURE_GROUPS.map((group) => (
               <div key={group.title}>
                 <h3 style={{ margin: '0 0 8px 0' }}>{group.title}</h3>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
