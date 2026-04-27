@@ -45,7 +45,12 @@ Or run both:
 - `GET /healthz`
 - `GET /api/domains`
 - `POST /api/domains`
+- `PUT /api/domains/item?name=<domain>`
+- `DELETE /api/domains/item?name=<domain>`
 - `GET /api/databases`
+- `POST /api/databases`
+- `PUT /api/databases/item?name=<database>`
+- `DELETE /api/databases/item?name=<database>`
 - `GET /api/mailboxes`
 - `POST /api/mailboxes`
 - `PUT /api/mailboxes/item?address=<email>`

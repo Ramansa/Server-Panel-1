@@ -23,7 +23,9 @@ func New(store *db.Store) *API {
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/healthz", a.health)
 	mux.HandleFunc("/api/domains", a.domains)
+	mux.HandleFunc("/api/domains/item", a.domainItem)
 	mux.HandleFunc("/api/databases", a.databases)
+	mux.HandleFunc("/api/databases/item", a.databaseItem)
 	mux.HandleFunc("/api/mailboxes", a.mailboxes)
 	mux.HandleFunc("/api/mailboxes/item", a.mailboxItem)
 	mux.HandleFunc("/api/mailboxes/password", a.mailboxPassword)
@@ -53,7 +55,7 @@ func (a *API) domains(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, items)
 	case http.MethodPost:
-		var input models.Domain
+		var input models.CreateDomainInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
@@ -61,9 +63,14 @@ func (a *API) domains(w http.ResponseWriter, r *http.Request) {
 		if input.Status == "" {
 			input.Status = "active"
 		}
-		created, err := a.Store.CreateDomain(r.Context(), input)
+		created, err := a.Store.CreateDomain(r.Context(), models.Domain{
+			Name:       strings.ToLower(strings.TrimSpace(input.Name)),
+			DocRoot:    strings.TrimSpace(input.DocRoot),
+			PHPVersion: strings.TrimSpace(input.PHPVersion),
+			Status:     strings.ToLower(strings.TrimSpace(input.Status)),
+		})
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, created)
@@ -72,17 +79,106 @@ func (a *API) domains(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *API) databases(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+func domainNameFromQuery(r *http.Request) (string, error) {
+	name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
+	if name == "" {
+		return "", errors.New("missing query parameter: name")
 	}
-	items, err := a.Store.ListDatabases(r.Context())
+	return name, nil
+}
+
+func (a *API) domainItem(w http.ResponseWriter, r *http.Request) {
+	name, err := domainNameFromQuery(r)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	switch r.Method {
+	case http.MethodPut:
+		var input models.UpdateDomainInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		updated, err := a.Store.UpdateDomain(r.Context(), name, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := a.Store.DeleteDomain(r.Context(), name); err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *API) databases(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		items, err := a.Store.ListDatabases(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	case http.MethodPost:
+		var input models.CreateDatabaseInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		created, err := a.Store.CreateDatabase(r.Context(), input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func databaseNameFromQuery(r *http.Request) (string, error) {
+	name := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("name")))
+	if name == "" {
+		return "", errors.New("missing query parameter: name")
+	}
+	return name, nil
+}
+
+func (a *API) databaseItem(w http.ResponseWriter, r *http.Request) {
+	name, err := databaseNameFromQuery(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var input models.UpdateDatabaseInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		updated, err := a.Store.UpdateDatabase(r.Context(), name, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+	case http.MethodDelete:
+		if err := a.Store.DeleteDatabase(r.Context(), name); err != nil {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }
 
 func (a *API) mailboxes(w http.ResponseWriter, r *http.Request) {

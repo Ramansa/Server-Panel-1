@@ -8,11 +8,35 @@ type Domain struct {
 	Status     string `json:"status"`
 }
 
+type CreateDomainInput struct {
+	Name       string `json:"name"`
+	DocRoot    string `json:"doc_root"`
+	PHPVersion string `json:"php_version"`
+	Status     string `json:"status"`
+}
+
+type UpdateDomainInput struct {
+	DocRoot    string `json:"doc_root,omitempty"`
+	PHPVersion string `json:"php_version,omitempty"`
+	Status     string `json:"status,omitempty"`
+}
+
 type Database struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
 	Owner    string `json:"owner"`
 	Encoding string `json:"encoding"`
+}
+
+type CreateDatabaseInput struct {
+	Name     string `json:"name"`
+	Owner    string `json:"owner"`
+	Encoding string `json:"encoding"`
+}
+
+type UpdateDatabaseInput struct {
+	Owner    string `json:"owner,omitempty"`
+	Encoding string `json:"encoding,omitempty"`
 }
 
 type Mailbox struct {
