@@ -1,8 +1,14 @@
-export function Card({ title, children }) {
+export function Card({ title, subtitle, children, actions }) {
   return (
-    <section style={{ background: '#111827', color: '#f9fafb', borderRadius: 12, padding: 16 }}>
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
-      {children}
+    <section className="panel-card">
+      <header className="panel-card__header">
+        <div>
+          <h2>{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {actions && <div className="panel-card__actions">{actions}</div>}
+      </header>
+      <div className="panel-card__body">{children}</div>
     </section>
   )
 }

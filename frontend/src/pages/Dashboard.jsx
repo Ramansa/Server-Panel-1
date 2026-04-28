@@ -618,12 +618,19 @@ export function Dashboard() {
   const parkingTargets = data.domains.filter((domain) => domain.type !== 'parking')
 
   return (
-    <main style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <h1>Server Panel (control-panel-style)</h1>
-      <p>Domains, databases, mail, FTP, DNS, files, and core service visibility in one dashboard.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-        <Card title="Account Provisioning (control-panel-like)">
-          <p style={{ marginTop: 0 }}>Create a hosting account and automatically provision domain, email, FTP, and database from one GUI form.</p>
+    <main className="dashboard-shell">
+      <section className="hero">
+        <h1>Server Panel</h1>
+        <p>Modern card-driven workspace with quick sub-menus for account provisioning and core hosting resources.</p>
+      </section>
+      <div className="dashboard-grid">
+        <Card title="Account Provisioning" subtitle="Provision full hosting bundles from one card.">
+          <div className="submenu">
+            <button type="button" className="active">Quick Provision</button>
+            <button type="button">Credentials</button>
+            <button type="button">Usage Summary</button>
+          </div>
+          <p>Create a hosting account and automatically provision domain, email, FTP, and database from one guided flow.</p>
           <form onSubmit={submitHostingAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input
               placeholder="account username (e.g. acme)"
@@ -669,16 +676,21 @@ export function Dashboard() {
             </div>
             <button type="submit">Provision Full Account</button>
           </form>
-          <ul>
+          <ul className="compact-list">
             <li>Total domains: {data.domains.length}</li>
             <li>Total mailboxes: {data.mailboxes.length}</li>
             <li>Total FTP users: {data.ftpAccounts.length}</li>
             <li>Total databases: {data.databases.length}</li>
           </ul>
-          <p>{hostingAccountStatus}</p>
+          <p className="status-text">{hostingAccountStatus}</p>
         </Card>
 
-        <Card title="Domains">
+        <Card title="Domains" subtitle="Domain, subdomain, and parked domain controls.">
+          <div className="submenu">
+            <button type="button" className="active">Create</button>
+            <button type="button">Subdomains</button>
+            <button type="button">Manage</button>
+          </div>
           <strong>Add Domain</strong>
           <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
             <input
@@ -741,7 +753,7 @@ export function Dashboard() {
           </form>
 
           <strong>Domains</strong>
-          <ul>
+          <ul className="compact-list">
             {rootDomains.map((d) => (
               <li key={d.id}>
                 {d.name} → {d.doc_root} ({d.php_version}) [{d.status}]
@@ -756,7 +768,7 @@ export function Dashboard() {
           </ul>
 
           <strong>Subdomains</strong>
-          <ul>
+          <ul className="compact-list">
             {subdomains.map((d) => (
               <li key={d.id}>
                 {d.name} (parent: {d.parent_domain}) → {d.doc_root} [{d.status}]
@@ -771,7 +783,7 @@ export function Dashboard() {
           </ul>
 
           <strong>Parking Domains</strong>
-          <ul>
+          <ul className="compact-list">
             {parkingDomains.map((d) => (
               <li key={d.id}>
                 {d.name} parked on {d.target_domain} [{d.status}]
@@ -786,10 +798,15 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-          <p>{accountStatus}</p>
+          <p className="status-text">{accountStatus}</p>
         </Card>
 
-        <Card title="Databases">
+        <Card title="Databases" subtitle="Provision and maintain SQL databases.">
+          <div className="submenu">
+            <button type="button" className="active">Create</button>
+            <button type="button">Ownership</button>
+            <button type="button">Cleanup</button>
+          </div>
           <form onSubmit={submitDatabase} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input
               placeholder="app_db"
@@ -808,7 +825,7 @@ export function Dashboard() {
             />
             <button type="submit">Create Database</button>
           </form>
-          <ul>
+          <ul className="compact-list">
             {data.databases.map((db) => (
               <li key={db.id}>
                 {db.name} ({db.owner}) [{db.encoding}]
@@ -821,7 +838,12 @@ export function Dashboard() {
           </ul>
         </Card>
 
-        <Card title="Mailboxes">
+        <Card title="Mailboxes" subtitle="Mailbox lifecycle and password operations.">
+          <div className="submenu">
+            <button type="button" className="active">Create</button>
+            <button type="button">Passwords</button>
+            <button type="button">Status</button>
+          </div>
           <form onSubmit={submitMailbox} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input
               placeholder="user@example.com"
@@ -857,7 +879,7 @@ export function Dashboard() {
             />
             <button type="submit">Reset Mailbox Password</button>
           </form>
-          <ul>
+          <ul className="compact-list">
             {data.mailboxes.map((m) => (
               <li key={m.id}>
                 {m.address} - {m.quota_mb}MB [{m.enabled ? 'enabled' : 'disabled'}]
@@ -870,7 +892,7 @@ export function Dashboard() {
               </li>
             ))}
           </ul>
-          <p>{mailStatus}</p>
+          <p className="status-text">{mailStatus}</p>
         </Card>
 
         <Card title="FTP Accounts">
@@ -916,7 +938,7 @@ export function Dashboard() {
             <button type="submit">Reset FTP Password</button>
           </form>
 
-          <ul>
+          <ul className="compact-list">
             {data.ftpAccounts.map((f) => (
               <li key={f.id}>
                 {f.username} → {f.home_dir} ({f.quota_mb}MB) [{f.enabled ? 'enabled' : 'disabled'}]
@@ -988,7 +1010,7 @@ export function Dashboard() {
               <button type="button" onClick={loadZonefile}>Generate Zone File</button>
             </div>
           </div>
-          <ul>
+          <ul className="compact-list">
             {data.dnsRecords.map((r) => (
               <li key={r.id}>
                 [{r.zone}] {r.type} {r.name} → {r.value}
@@ -1027,7 +1049,7 @@ export function Dashboard() {
             )}
             <button type="submit">Create</button>
           </form>
-          <ul>
+          <ul className="compact-list">
             {data.fileItems.map((f) => (
               <li key={f.id}>
                 {f.kind}: {f.path} ({f.size_kb}KB)
@@ -1051,7 +1073,7 @@ export function Dashboard() {
         </Card>
 
         <Card title="Services">
-          <ul>
+          <ul className="compact-list">
             {data.services.map((s) => (
               <li key={s.name}>{s.name}: {s.enabled ? 'enabled' : 'disabled'}</li>
             ))}
