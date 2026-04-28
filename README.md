@@ -70,6 +70,9 @@ npm run dev
 ```bash
 ./scripts/dev.sh
 ```
+Then open:
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:8080` (API routes are under `/api`, health check at `/healthz`)
 
 ## Local development (Linux)
 
