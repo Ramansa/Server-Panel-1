@@ -169,6 +169,15 @@ export function Dashboard() {
     ftp_quota_mb: 4096
   })
   const [hostingAccountStatus, setHostingAccountStatus] = useState('')
+  const [activeMenus, setActiveMenus] = useState({
+    account: 'quick',
+    domains: 'create',
+    databases: 'create',
+    mailboxes: 'create',
+    ftp: 'create',
+    dns: 'create',
+    files: 'create'
+  })
 
   const loadAll = () =>
     Promise.all([
@@ -358,6 +367,7 @@ export function Dashboard() {
         setSelectedFilePath(item.path)
         setRenamePath(item.path)
         setEditorContent(item.content || '')
+        setMenu('files', 'editor')
         setFileStatus(`Loaded ${item.path}`)
       })
       .catch((error) => setFileStatus(error.message))
@@ -616,6 +626,7 @@ export function Dashboard() {
   const subdomains = data.domains.filter((domain) => domain.type === 'subdomain')
   const parkingDomains = data.domains.filter((domain) => domain.type === 'parking')
   const parkingTargets = data.domains.filter((domain) => domain.type !== 'parking')
+  const setMenu = (card, tab) => setActiveMenus((prev) => ({ ...prev, [card]: tab }))
 
   return (
     <main className="dashboard-shell">
@@ -626,442 +637,515 @@ export function Dashboard() {
       <div className="dashboard-grid">
         <Card title="Account Provisioning" subtitle="Provision full hosting bundles from one card.">
           <div className="submenu">
-            <button type="button" className="active">Quick Provision</button>
-            <button type="button">Credentials</button>
-            <button type="button">Usage Summary</button>
+            <button type="button" className={activeMenus.account === 'quick' ? 'active' : ''} onClick={() => setMenu('account', 'quick')}>Quick Provision</button>
+            <button type="button" className={activeMenus.account === 'credentials' ? 'active' : ''} onClick={() => setMenu('account', 'credentials')}>Credentials</button>
+            <button type="button" className={activeMenus.account === 'usage' ? 'active' : ''} onClick={() => setMenu('account', 'usage')}>Usage Summary</button>
           </div>
-          <p>Create a hosting account and automatically provision domain, email, FTP, and database from one guided flow.</p>
-          <form onSubmit={submitHostingAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="account username (e.g. acme)"
-              value={hostingAccountForm.account}
-              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, account: event.target.value }))}
-            />
-            <input
-              placeholder="primary domain (e.g. acme.com)"
-              value={hostingAccountForm.domain}
-              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, domain: event.target.value }))}
-            />
-            <input
-              placeholder="database owner"
-              value={hostingAccountForm.owner}
-              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, owner: event.target.value }))}
-            />
-            <input
-              type="password"
-              placeholder="account password"
-              value={hostingAccountForm.password}
-              onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, password: event.target.value }))}
-            />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <input
-                placeholder="PHP version"
-                value={hostingAccountForm.php_version}
-                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, php_version: event.target.value }))}
-              />
-              <input
-                type="number"
-                min={128}
-                placeholder="mailbox quota MB"
-                value={hostingAccountForm.mailbox_quota_mb}
-                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, mailbox_quota_mb: event.target.value }))}
-              />
-              <input
-                type="number"
-                min={256}
-                placeholder="FTP quota MB"
-                value={hostingAccountForm.ftp_quota_mb}
-                onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, ftp_quota_mb: event.target.value }))}
-              />
-            </div>
-            <button type="submit">Provision Full Account</button>
-          </form>
-          <ul className="compact-list">
-            <li>Total domains: {data.domains.length}</li>
-            <li>Total mailboxes: {data.mailboxes.length}</li>
-            <li>Total FTP users: {data.ftpAccounts.length}</li>
-            <li>Total databases: {data.databases.length}</li>
-          </ul>
+          {activeMenus.account === 'quick' && (
+            <>
+              <p>Create a hosting account and automatically provision domain, email, FTP, and database from one guided flow.</p>
+              <form onSubmit={submitHostingAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <input
+                  placeholder="account username (e.g. acme)"
+                  value={hostingAccountForm.account}
+                  onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, account: event.target.value }))}
+                />
+                <input
+                  placeholder="primary domain (e.g. acme.com)"
+                  value={hostingAccountForm.domain}
+                  onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, domain: event.target.value }))}
+                />
+                <input
+                  placeholder="database owner"
+                  value={hostingAccountForm.owner}
+                  onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, owner: event.target.value }))}
+                />
+                <input
+                  type="password"
+                  placeholder="account password"
+                  value={hostingAccountForm.password}
+                  onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, password: event.target.value }))}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <input
+                    placeholder="PHP version"
+                    value={hostingAccountForm.php_version}
+                    onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, php_version: event.target.value }))}
+                  />
+                  <input
+                    type="number"
+                    min={128}
+                    placeholder="mailbox quota MB"
+                    value={hostingAccountForm.mailbox_quota_mb}
+                    onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, mailbox_quota_mb: event.target.value }))}
+                  />
+                  <input
+                    type="number"
+                    min={256}
+                    placeholder="FTP quota MB"
+                    value={hostingAccountForm.ftp_quota_mb}
+                    onChange={(event) => setHostingAccountForm((prev) => ({ ...prev, ftp_quota_mb: event.target.value }))}
+                  />
+                </div>
+                <button type="submit">Provision Full Account</button>
+              </form>
+            </>
+          )}
+          {activeMenus.account === 'credentials' && (
+            <ul className="compact-list">
+              <li>Domain: {hostingAccountForm.domain || '—'}</li>
+              <li>Mailbox: {hostingAccountForm.account && hostingAccountForm.domain ? `${hostingAccountForm.account}@${hostingAccountForm.domain}` : '—'}</li>
+              <li>FTP username: {hostingAccountForm.account || '—'}</li>
+              <li>Database: {hostingAccountForm.account ? `${hostingAccountForm.account}_db` : '—'}</li>
+            </ul>
+          )}
+          {activeMenus.account === 'usage' && (
+            <ul className="compact-list">
+              <li>Total domains: {data.domains.length}</li>
+              <li>Total mailboxes: {data.mailboxes.length}</li>
+              <li>Total FTP users: {data.ftpAccounts.length}</li>
+              <li>Total databases: {data.databases.length}</li>
+            </ul>
+          )}
           <p className="status-text">{hostingAccountStatus}</p>
         </Card>
 
         <Card title="Domains" subtitle="Domain, subdomain, and parked domain controls.">
           <div className="submenu">
-            <button type="button" className="active">Create</button>
-            <button type="button">Subdomains</button>
-            <button type="button">Manage</button>
+            <button type="button" className={activeMenus.domains === 'create' ? 'active' : ''} onClick={() => setMenu('domains', 'create')}>Create</button>
+            <button type="button" className={activeMenus.domains === 'subdomains' ? 'active' : ''} onClick={() => setMenu('domains', 'subdomains')}>Subdomains</button>
+            <button type="button" className={activeMenus.domains === 'manage' ? 'active' : ''} onClick={() => setMenu('domains', 'manage')}>Manage</button>
           </div>
-          <strong>Add Domain</strong>
-          <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
-            <input
-              placeholder="example.com"
-              value={domainForm.name}
-              onChange={(event) => setDomainForm((prev) => ({ ...prev, name: event.target.value }))}
-            />
-            <input
-              placeholder="/home/account/public_html (optional)"
-              value={domainForm.doc_root}
-              onChange={(event) => setDomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
-            />
-            <input
-              placeholder="8.2"
-              value={domainForm.php_version}
-              onChange={(event) => setDomainForm((prev) => ({ ...prev, php_version: event.target.value }))}
-            />
-            <button type="submit">Create Domain</button>
-          </form>
+          {activeMenus.domains === 'create' && (
+            <>
+              <strong>Add Domain</strong>
+              <form onSubmit={submitDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
+                <input
+                  placeholder="example.com"
+                  value={domainForm.name}
+                  onChange={(event) => setDomainForm((prev) => ({ ...prev, name: event.target.value }))}
+                />
+                <input
+                  placeholder="/home/account/public_html (optional)"
+                  value={domainForm.doc_root}
+                  onChange={(event) => setDomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
+                />
+                <input
+                  placeholder="8.2"
+                  value={domainForm.php_version}
+                  onChange={(event) => setDomainForm((prev) => ({ ...prev, php_version: event.target.value }))}
+                />
+                <button type="submit">Create Domain</button>
+              </form>
+            </>
+          )}
+          {activeMenus.domains === 'subdomains' && (
+            <>
+              <strong>Add Subdomain</strong>
+              <form onSubmit={submitSubdomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
+                <input
+                  placeholder="blog"
+                  value={subdomainForm.label}
+                  onChange={(event) => setSubdomainForm((prev) => ({ ...prev, label: event.target.value }))}
+                />
+                <select
+                  value={subdomainForm.parent_domain}
+                  onChange={(event) => setSubdomainForm((prev) => ({ ...prev, parent_domain: event.target.value }))}
+                >
+                  {rootDomains.map((domain) => (
+                    <option key={domain.id} value={domain.name}>{domain.name}</option>
+                  ))}
+                </select>
+                <input
+                  placeholder="/home/account/public_html/blog (optional)"
+                  value={subdomainForm.doc_root}
+                  onChange={(event) => setSubdomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
+                />
+                <button type="submit">Create Subdomain</button>
+              </form>
+              <strong>Subdomains</strong>
+              <ul className="compact-list">
+                {subdomains.map((d) => (
+                  <li key={d.id}>
+                    {d.name} (parent: {d.parent_domain}) → {d.doc_root} [{d.status}]
+                    {' '}
+                    <button type="button" onClick={() => updateDomainStatus(d)}>
+                      {d.status === 'active' ? 'Suspend' : 'Activate'}
+                    </button>
+                    {' '}
+                    <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {activeMenus.domains === 'manage' && (
+            <>
+              <strong>Add Parking Domain</strong>
+              <form onSubmit={submitParkingDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
+                <input
+                  placeholder="example.net"
+                  value={parkingForm.name}
+                  onChange={(event) => setParkingForm((prev) => ({ ...prev, name: event.target.value }))}
+                />
+                <select
+                  value={parkingForm.target_domain}
+                  onChange={(event) => setParkingForm((prev) => ({ ...prev, target_domain: event.target.value }))}
+                >
+                  {parkingTargets.map((domain) => (
+                    <option key={domain.id} value={domain.name}>{domain.name}</option>
+                  ))}
+                </select>
+                <button type="submit">Create Parking Domain</button>
+              </form>
+              <strong>Domains</strong>
+              <ul className="compact-list">
+                {rootDomains.map((d) => (
+                  <li key={d.id}>
+                    {d.name} → {d.doc_root} ({d.php_version}) [{d.status}]
+                    {' '}
+                    <button type="button" onClick={() => updateDomainStatus(d)}>
+                      {d.status === 'active' ? 'Suspend' : 'Activate'}
+                    </button>
+                    {' '}
+                    <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+                  </li>
+                ))}
+              </ul>
 
-          <strong>Add Subdomain</strong>
-          <form onSubmit={submitSubdomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
-            <input
-              placeholder="blog"
-              value={subdomainForm.label}
-              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, label: event.target.value }))}
-            />
-            <select
-              value={subdomainForm.parent_domain}
-              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, parent_domain: event.target.value }))}
-            >
-              {rootDomains.map((domain) => (
-                <option key={domain.id} value={domain.name}>{domain.name}</option>
-              ))}
-            </select>
-            <input
-              placeholder="/home/account/public_html/blog (optional)"
-              value={subdomainForm.doc_root}
-              onChange={(event) => setSubdomainForm((prev) => ({ ...prev, doc_root: event.target.value }))}
-            />
-            <button type="submit">Create Subdomain</button>
-          </form>
-
-          <strong>Add Parking Domain</strong>
-          <form onSubmit={submitParkingDomain} style={{ display: 'grid', gap: 8, marginTop: 8, marginBottom: 12 }}>
-            <input
-              placeholder="example.net"
-              value={parkingForm.name}
-              onChange={(event) => setParkingForm((prev) => ({ ...prev, name: event.target.value }))}
-            />
-            <select
-              value={parkingForm.target_domain}
-              onChange={(event) => setParkingForm((prev) => ({ ...prev, target_domain: event.target.value }))}
-            >
-              {parkingTargets.map((domain) => (
-                <option key={domain.id} value={domain.name}>{domain.name}</option>
-              ))}
-            </select>
-            <button type="submit">Create Parking Domain</button>
-          </form>
-
-          <strong>Domains</strong>
-          <ul className="compact-list">
-            {rootDomains.map((d) => (
-              <li key={d.id}>
-                {d.name} → {d.doc_root} ({d.php_version}) [{d.status}]
-                {' '}
-                <button type="button" onClick={() => updateDomainStatus(d)}>
-                  {d.status === 'active' ? 'Suspend' : 'Activate'}
-                </button>
-                {' '}
-                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-
-          <strong>Subdomains</strong>
-          <ul className="compact-list">
-            {subdomains.map((d) => (
-              <li key={d.id}>
-                {d.name} (parent: {d.parent_domain}) → {d.doc_root} [{d.status}]
-                {' '}
-                <button type="button" onClick={() => updateDomainStatus(d)}>
-                  {d.status === 'active' ? 'Suspend' : 'Activate'}
-                </button>
-                {' '}
-                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-
-          <strong>Parking Domains</strong>
-          <ul className="compact-list">
-            {parkingDomains.map((d) => (
-              <li key={d.id}>
-                {d.name} parked on {d.target_domain} [{d.status}]
-                {' '}
-                <button type="button" onClick={() => retargetParkingDomain(d)}>Retarget</button>
-                {' '}
-                <button type="button" onClick={() => updateDomainStatus(d)}>
-                  {d.status === 'active' ? 'Suspend' : 'Activate'}
-                </button>
-                {' '}
-                <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
-              </li>
-            ))}
-          </ul>
+              <strong>Parking Domains</strong>
+              <ul className="compact-list">
+                {parkingDomains.map((d) => (
+                  <li key={d.id}>
+                    {d.name} parked on {d.target_domain} [{d.status}]
+                    {' '}
+                    <button type="button" onClick={() => retargetParkingDomain(d)}>Retarget</button>
+                    {' '}
+                    <button type="button" onClick={() => updateDomainStatus(d)}>
+                      {d.status === 'active' ? 'Suspend' : 'Activate'}
+                    </button>
+                    {' '}
+                    <button type="button" onClick={() => removeDomain(d.name)}>Delete</button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <p className="status-text">{accountStatus}</p>
         </Card>
 
         <Card title="Databases" subtitle="Provision and maintain SQL databases.">
           <div className="submenu">
-            <button type="button" className="active">Create</button>
-            <button type="button">Ownership</button>
-            <button type="button">Cleanup</button>
+            <button type="button" className={activeMenus.databases === 'create' ? 'active' : ''} onClick={() => setMenu('databases', 'create')}>Create</button>
+            <button type="button" className={activeMenus.databases === 'ownership' ? 'active' : ''} onClick={() => setMenu('databases', 'ownership')}>Ownership</button>
+            <button type="button" className={activeMenus.databases === 'cleanup' ? 'active' : ''} onClick={() => setMenu('databases', 'cleanup')}>Cleanup</button>
           </div>
-          <form onSubmit={submitDatabase} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="app_db"
-              value={databaseForm.name}
-              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, name: event.target.value }))}
-            />
-            <input
-              placeholder="owner"
-              value={databaseForm.owner}
-              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, owner: event.target.value }))}
-            />
-            <input
-              placeholder="UTF8"
-              value={databaseForm.encoding}
-              onChange={(event) => setDatabaseForm((prev) => ({ ...prev, encoding: event.target.value }))}
-            />
-            <button type="submit">Create Database</button>
-          </form>
-          <ul className="compact-list">
-            {data.databases.map((db) => (
-              <li key={db.id}>
-                {db.name} ({db.owner}) [{db.encoding}]
-                {' '}
-                <button type="button" onClick={() => reassignDatabaseOwner(db)}>Change Owner</button>
-                {' '}
-                <button type="button" onClick={() => removeDatabase(db.name)}>Delete</button>
-              </li>
-            ))}
-          </ul>
+          {activeMenus.databases === 'create' && (
+            <form onSubmit={submitDatabase} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="app_db"
+                value={databaseForm.name}
+                onChange={(event) => setDatabaseForm((prev) => ({ ...prev, name: event.target.value }))}
+              />
+              <input
+                placeholder="owner"
+                value={databaseForm.owner}
+                onChange={(event) => setDatabaseForm((prev) => ({ ...prev, owner: event.target.value }))}
+              />
+              <input
+                placeholder="UTF8"
+                value={databaseForm.encoding}
+                onChange={(event) => setDatabaseForm((prev) => ({ ...prev, encoding: event.target.value }))}
+              />
+              <button type="submit">Create Database</button>
+            </form>
+          )}
+          {activeMenus.databases === 'ownership' && (
+            <ul className="compact-list">
+              {data.databases.map((db) => (
+                <li key={db.id}>
+                  {db.name} ({db.owner}) [{db.encoding}]
+                  {' '}
+                  <button type="button" onClick={() => reassignDatabaseOwner(db)}>Change Owner</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {activeMenus.databases === 'cleanup' && (
+            <ul className="compact-list">
+              {data.databases.map((db) => (
+                <li key={db.id}>
+                  {db.name}
+                  {' '}
+                  <button type="button" onClick={() => removeDatabase(db.name)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Card title="Mailboxes" subtitle="Mailbox lifecycle and password operations.">
           <div className="submenu">
-            <button type="button" className="active">Create</button>
-            <button type="button">Passwords</button>
-            <button type="button">Status</button>
+            <button type="button" className={activeMenus.mailboxes === 'create' ? 'active' : ''} onClick={() => setMenu('mailboxes', 'create')}>Create</button>
+            <button type="button" className={activeMenus.mailboxes === 'passwords' ? 'active' : ''} onClick={() => setMenu('mailboxes', 'passwords')}>Passwords</button>
+            <button type="button" className={activeMenus.mailboxes === 'status' ? 'active' : ''} onClick={() => setMenu('mailboxes', 'status')}>Status</button>
           </div>
-          <form onSubmit={submitMailbox} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="user@example.com"
-              value={mailboxForm.address}
-              onChange={(event) => setMailboxForm((prev) => ({ ...prev, address: event.target.value }))}
-            />
-            <input
-              type="password"
-              placeholder="password"
-              value={mailboxForm.password}
-              onChange={(event) => setMailboxForm((prev) => ({ ...prev, password: event.target.value }))}
-            />
-            <input
-              type="number"
-              min={1}
-              placeholder="quota (MB)"
-              value={mailboxForm.quota_mb}
-              onChange={(event) => setMailboxForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
-            />
-            <button type="submit">Create Mailbox</button>
-          </form>
-          <form onSubmit={submitMailboxPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="mailbox for password reset"
-              value={mailboxPasswordForm.address}
-              onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, address: event.target.value }))}
-            />
-            <input
-              type="password"
-              placeholder="new mailbox password"
-              value={mailboxPasswordForm.password}
-              onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
-            />
-            <button type="submit">Reset Mailbox Password</button>
-          </form>
-          <ul className="compact-list">
-            {data.mailboxes.map((m) => (
-              <li key={m.id}>
-                {m.address} - {m.quota_mb}MB [{m.enabled ? 'enabled' : 'disabled'}]
-                {' '}
-                <button type="button" onClick={() => toggleMailboxEnabled(m)}>
-                  {m.enabled ? 'Disable' : 'Enable'}
-                </button>
-                {' '}
-                <button type="button" onClick={() => removeMailbox(m.address)}>Delete</button>
-              </li>
-            ))}
-          </ul>
+          {activeMenus.mailboxes === 'create' && (
+            <form onSubmit={submitMailbox} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="user@example.com"
+                value={mailboxForm.address}
+                onChange={(event) => setMailboxForm((prev) => ({ ...prev, address: event.target.value }))}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={mailboxForm.password}
+                onChange={(event) => setMailboxForm((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <input
+                type="number"
+                min={1}
+                placeholder="quota (MB)"
+                value={mailboxForm.quota_mb}
+                onChange={(event) => setMailboxForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
+              />
+              <button type="submit">Create Mailbox</button>
+            </form>
+          )}
+          {activeMenus.mailboxes === 'passwords' && (
+            <form onSubmit={submitMailboxPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="mailbox for password reset"
+                value={mailboxPasswordForm.address}
+                onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, address: event.target.value }))}
+              />
+              <input
+                type="password"
+                placeholder="new mailbox password"
+                value={mailboxPasswordForm.password}
+                onChange={(event) => setMailboxPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <button type="submit">Reset Mailbox Password</button>
+            </form>
+          )}
+          {activeMenus.mailboxes === 'status' && (
+            <ul className="compact-list">
+              {data.mailboxes.map((m) => (
+                <li key={m.id}>
+                  {m.address} - {m.quota_mb}MB [{m.enabled ? 'enabled' : 'disabled'}]
+                  {' '}
+                  <button type="button" onClick={() => toggleMailboxEnabled(m)}>
+                    {m.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  {' '}
+                  <button type="button" onClick={() => removeMailbox(m.address)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
           <p className="status-text">{mailStatus}</p>
         </Card>
 
         <Card title="FTP Accounts">
-          <form onSubmit={submitFtpAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="username"
-              value={ftpForm.username}
-              onChange={(event) => setFtpForm((prev) => ({ ...prev, username: event.target.value }))}
-            />
-            <input
-              type="password"
-              placeholder="password"
-              value={ftpForm.password}
-              onChange={(event) => setFtpForm((prev) => ({ ...prev, password: event.target.value }))}
-            />
-            <input
-              placeholder="/home/account/public_html"
-              value={ftpForm.home_dir}
-              onChange={(event) => setFtpForm((prev) => ({ ...prev, home_dir: event.target.value }))}
-            />
-            <input
-              type="number"
-              min={1}
-              placeholder="quota (MB)"
-              value={ftpForm.quota_mb}
-              onChange={(event) => setFtpForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
-            />
-            <button type="submit">Create FTP User</button>
-          </form>
+          <div className="submenu">
+            <button type="button" className={activeMenus.ftp === 'create' ? 'active' : ''} onClick={() => setMenu('ftp', 'create')}>Create</button>
+            <button type="button" className={activeMenus.ftp === 'passwords' ? 'active' : ''} onClick={() => setMenu('ftp', 'passwords')}>Passwords</button>
+            <button type="button" className={activeMenus.ftp === 'status' ? 'active' : ''} onClick={() => setMenu('ftp', 'status')}>Status</button>
+          </div>
+          {activeMenus.ftp === 'create' && (
+            <form onSubmit={submitFtpAccount} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="username"
+                value={ftpForm.username}
+                onChange={(event) => setFtpForm((prev) => ({ ...prev, username: event.target.value }))}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={ftpForm.password}
+                onChange={(event) => setFtpForm((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <input
+                placeholder="/home/account/public_html"
+                value={ftpForm.home_dir}
+                onChange={(event) => setFtpForm((prev) => ({ ...prev, home_dir: event.target.value }))}
+              />
+              <input
+                type="number"
+                min={1}
+                placeholder="quota (MB)"
+                value={ftpForm.quota_mb}
+                onChange={(event) => setFtpForm((prev) => ({ ...prev, quota_mb: event.target.value }))}
+              />
+              <button type="submit">Create FTP User</button>
+            </form>
+          )}
 
-          <form onSubmit={submitFtpPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="username for password reset"
-              value={ftpPasswordForm.username}
-              onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, username: event.target.value }))}
-            />
-            <input
-              type="password"
-              placeholder="new password"
-              value={ftpPasswordForm.password}
-              onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
-            />
-            <button type="submit">Reset FTP Password</button>
-          </form>
+          {activeMenus.ftp === 'passwords' && (
+            <form onSubmit={submitFtpPassword} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="username for password reset"
+                value={ftpPasswordForm.username}
+                onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, username: event.target.value }))}
+              />
+              <input
+                type="password"
+                placeholder="new password"
+                value={ftpPasswordForm.password}
+                onChange={(event) => setFtpPasswordForm((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <button type="submit">Reset FTP Password</button>
+            </form>
+          )}
 
-          <ul className="compact-list">
-            {data.ftpAccounts.map((f) => (
-              <li key={f.id}>
-                {f.username} → {f.home_dir} ({f.quota_mb}MB) [{f.enabled ? 'enabled' : 'disabled'}]
-                {' '}
-                <button type="button" onClick={() => toggleFtpEnabled(f)}>
-                  {f.enabled ? 'Disable' : 'Enable'}
-                </button>
-                {' '}
-                <button type="button" onClick={() => removeFtp(f.username)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-          <p>{ftpStatus}</p>
+          {activeMenus.ftp === 'status' && (
+            <ul className="compact-list">
+              {data.ftpAccounts.map((f) => (
+                <li key={f.id}>
+                  {f.username} → {f.home_dir} ({f.quota_mb}MB) [{f.enabled ? 'enabled' : 'disabled'}]
+                  {' '}
+                  <button type="button" onClick={() => toggleFtpEnabled(f)}>
+                    {f.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  {' '}
+                  <button type="button" onClick={() => removeFtp(f.username)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="status-text">{ftpStatus}</p>
         </Card>
 
         <Card title="DNS Records">
-          <form onSubmit={submitDnsRecord} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="zone (example.com)"
-              value={dnsForm.zone}
-              onChange={(event) => setDnsForm((prev) => ({ ...prev, zone: event.target.value }))}
-            />
-            <select
-              value={dnsForm.type}
-              onChange={(event) => setDnsForm((prev) => ({ ...prev, type: event.target.value }))}
-            >
-              {['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'].map((recordType) => (
-                <option key={recordType} value={recordType}>{recordType}</option>
-              ))}
-            </select>
-            <input
-              placeholder="name (@, www, mail)"
-              value={dnsForm.name}
-              onChange={(event) => setDnsForm((prev) => ({ ...prev, name: event.target.value }))}
-            />
-            <input
-              placeholder="value"
-              value={dnsForm.value}
-              onChange={(event) => setDnsForm((prev) => ({ ...prev, value: event.target.value }))}
-            />
-            <input
-              type="number"
-              min={60}
-              max={604800}
-              placeholder="ttl"
-              value={dnsForm.ttl}
-              onChange={(event) => setDnsForm((prev) => ({ ...prev, ttl: event.target.value }))}
-            />
-            {['MX', 'SRV'].includes(dnsForm.type) && (
+          <div className="submenu">
+            <button type="button" className={activeMenus.dns === 'create' ? 'active' : ''} onClick={() => setMenu('dns', 'create')}>Create</button>
+            <button type="button" className={activeMenus.dns === 'zone' ? 'active' : ''} onClick={() => setMenu('dns', 'zone')}>Zone Tools</button>
+            <button type="button" className={activeMenus.dns === 'records' ? 'active' : ''} onClick={() => setMenu('dns', 'records')}>Records</button>
+          </div>
+          {activeMenus.dns === 'create' && (
+            <form onSubmit={submitDnsRecord} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="zone (example.com)"
+                value={dnsForm.zone}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, zone: event.target.value }))}
+              />
+              <select
+                value={dnsForm.type}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, type: event.target.value }))}
+              >
+                {['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'].map((recordType) => (
+                  <option key={recordType} value={recordType}>{recordType}</option>
+                ))}
+              </select>
+              <input
+                placeholder="name (@, www, mail)"
+                value={dnsForm.name}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, name: event.target.value }))}
+              />
+              <input
+                placeholder="value"
+                value={dnsForm.value}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, value: event.target.value }))}
+              />
               <input
                 type="number"
-                min={0}
-                max={65535}
-                placeholder="priority"
-                value={dnsForm.priority}
-                onChange={(event) => setDnsForm((prev) => ({ ...prev, priority: event.target.value }))}
+                min={60}
+                max={604800}
+                placeholder="ttl"
+                value={dnsForm.ttl}
+                onChange={(event) => setDnsForm((prev) => ({ ...prev, ttl: event.target.value }))}
               />
-            )}
-            <button type="submit">Create DNS Record</button>
-          </form>
-          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="Filter zone (optional)"
-              value={dnsFilterZone}
-              onChange={(event) => setDnsFilterZone(event.target.value)}
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={refreshDns}>Apply Filter</button>
-              <button type="button" onClick={loadZonefile}>Generate Zone File</button>
-            </div>
-          </div>
-          <ul className="compact-list">
-            {data.dnsRecords.map((r) => (
-              <li key={r.id}>
-                [{r.zone}] {r.type} {r.name} → {r.value}
-                {r.priority !== undefined && r.priority !== null ? ` (priority ${r.priority})` : ''}
-                {' '}
-                (TTL {r.ttl})
-                {' '}
-                <button type="button" onClick={() => removeDnsRecord(r.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-          {zonefileOutput && <textarea rows={8} readOnly value={zonefileOutput} />}
-          <p>{dnsStatus}</p>
+              {['MX', 'SRV'].includes(dnsForm.type) && (
+                <input
+                  type="number"
+                  min={0}
+                  max={65535}
+                  placeholder="priority"
+                  value={dnsForm.priority}
+                  onChange={(event) => setDnsForm((prev) => ({ ...prev, priority: event.target.value }))}
+                />
+              )}
+              <button type="submit">Create DNS Record</button>
+            </form>
+          )}
+          {activeMenus.dns === 'zone' && (
+            <>
+              <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <input
+                  placeholder="Filter zone (optional)"
+                  value={dnsFilterZone}
+                  onChange={(event) => setDnsFilterZone(event.target.value)}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={refreshDns}>Apply Filter</button>
+                  <button type="button" onClick={loadZonefile}>Generate Zone File</button>
+                </div>
+              </div>
+              {zonefileOutput && <textarea rows={8} readOnly value={zonefileOutput} />}
+            </>
+          )}
+          {activeMenus.dns === 'records' && (
+            <ul className="compact-list">
+              {data.dnsRecords.map((r) => (
+                <li key={r.id}>
+                  [{r.zone}] {r.type} {r.name} → {r.value}
+                  {r.priority !== undefined && r.priority !== null ? ` (priority ${r.priority})` : ''}
+                  {' '}
+                  (TTL {r.ttl})
+                  {' '}
+                  <button type="button" onClick={() => removeDnsRecord(r.id)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="status-text">{dnsStatus}</p>
         </Card>
 
         <Card title="File Manager">
-          <form onSubmit={submitNewItem} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input
-              placeholder="/home/example/public_html/new.txt"
-              value={fileForm.path}
-              onChange={(event) => setFileForm((prev) => ({ ...prev, path: event.target.value }))}
-            />
-            <select
-              value={fileForm.kind}
-              onChange={(event) => setFileForm((prev) => ({ ...prev, kind: event.target.value }))}
-            >
-              <option value="file">file</option>
-              <option value="directory">directory</option>
-            </select>
-            {fileForm.kind === 'file' && (
-              <textarea
-                placeholder="Initial file content"
-                value={fileForm.content}
-                onChange={(event) => setFileForm((prev) => ({ ...prev, content: event.target.value }))}
+          <div className="submenu">
+            <button type="button" className={activeMenus.files === 'create' ? 'active' : ''} onClick={() => setMenu('files', 'create')}>Create</button>
+            <button type="button" className={activeMenus.files === 'browse' ? 'active' : ''} onClick={() => setMenu('files', 'browse')}>Browse</button>
+            <button type="button" className={activeMenus.files === 'editor' ? 'active' : ''} onClick={() => setMenu('files', 'editor')}>Editor</button>
+          </div>
+          {activeMenus.files === 'create' && (
+            <form onSubmit={submitNewItem} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              <input
+                placeholder="/home/example/public_html/new.txt"
+                value={fileForm.path}
+                onChange={(event) => setFileForm((prev) => ({ ...prev, path: event.target.value }))}
               />
-            )}
-            <button type="submit">Create</button>
-          </form>
-          <ul className="compact-list">
-            {data.fileItems.map((f) => (
-              <li key={f.id}>
-                {f.kind}: {f.path} ({f.size_kb}KB)
-                {' '}
-                <button type="button" onClick={() => openFile(f.path)} disabled={f.kind !== 'file'}>Edit</button>
-                {' '}
-                <button type="button" onClick={() => removeItem(f.path)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-          <p>{fileStatus}</p>
-          {selectedFilePath && (
+              <select
+                value={fileForm.kind}
+                onChange={(event) => setFileForm((prev) => ({ ...prev, kind: event.target.value }))}
+              >
+                <option value="file">file</option>
+                <option value="directory">directory</option>
+              </select>
+              {fileForm.kind === 'file' && (
+                <textarea
+                  placeholder="Initial file content"
+                  value={fileForm.content}
+                  onChange={(event) => setFileForm((prev) => ({ ...prev, content: event.target.value }))}
+                />
+              )}
+              <button type="submit">Create</button>
+            </form>
+          )}
+          {activeMenus.files === 'browse' && (
+            <ul className="compact-list">
+              {data.fileItems.map((f) => (
+                <li key={f.id}>
+                  {f.kind}: {f.path} ({f.size_kb}KB)
+                  {' '}
+                  <button type="button" onClick={() => openFile(f.path)} disabled={f.kind !== 'file'}>Edit</button>
+                  {' '}
+                  <button type="button" onClick={() => removeItem(f.path)}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {activeMenus.files === 'editor' && selectedFilePath && (
             <div style={{ display: 'grid', gap: 8 }}>
               <input value={renamePath} onChange={(event) => setRenamePath(event.target.value)} />
               <button type="button" onClick={renameItem}>Rename / Move</button>
@@ -1070,6 +1154,10 @@ export function Dashboard() {
               <button type="button" onClick={downloadSelected}>Download File</button>
             </div>
           )}
+          {activeMenus.files === 'editor' && !selectedFilePath && (
+            <p className="status-text">Open a file from Browse to use the editor.</p>
+          )}
+          <p className="status-text">{fileStatus}</p>
         </Card>
 
         <Card title="Services">
