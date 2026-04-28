@@ -21,6 +21,7 @@ func New(store *db.Store) *API {
 }
 
 func (a *API) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/", a.index)
 	mux.HandleFunc("/healthz", a.health)
 	mux.HandleFunc("/api/domains", a.domains)
 	mux.HandleFunc("/api/domains/item", a.domainItem)
@@ -39,6 +40,18 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/files/item", a.fileItem)
 	mux.HandleFunc("/api/files/download", a.downloadFileItem)
 	mux.HandleFunc("/api/services", a.services)
+}
+
+func (a *API) index(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		writeError(w, http.StatusNotFound, errors.New("page not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message":  "Server Panel backend is running.",
+		"healthz":  "/healthz",
+		"frontend": "http://localhost:5173",
+	})
 }
 
 func (a *API) health(w http.ResponseWriter, _ *http.Request) {
